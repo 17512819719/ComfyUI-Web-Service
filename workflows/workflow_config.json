@@ -1,0 +1,29 @@
+{
+  "default_workflow": "标准文生图",
+  "workflow_categories": {
+    "text_to_image": [
+      "标准文生图"
+    ],
+    "image_to_video": [
+      "万相2.1图生视频"
+    ]
+  },
+  "workflow_descriptions": {
+    "标准文生图": "SD3.5标准文生图工作流，支持高质量图像生成",
+    "万相2.1图生视频": "万相2.1图生视频工作流，支持图像转视频"
+  },
+  "workflow_settings": {
+    "标准文生图": {
+      "default_width": 512,
+      "default_height": 512,
+      "default_steps": 20,
+      "default_cfg_scale": 7.0,
+      "supported_aspect_ratios": ["1:1", "9:16", "16:9"]
+    },
+    "万相2.1图生视频": {
+      "default_duration": 5.0,
+      "default_fps": 8,
+      "default_motion_strength": 0.8
+    }
+  }
+} 

@@ -6,6 +6,7 @@ import time
 from typing import Dict, Any, Optional
 from datetime import datetime
 import yaml
+from workflow_selector import workflow_selector
 
 # Celery配置
 celery_app = Celery(
@@ -140,7 +141,22 @@ def get_task_result(task_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 def create_image_workflow(request_data: Dict[str, Any]) -> Dict[str, Any]:
-    """创建文生图工作流，参数优先级：request_data > config.yaml"""
+    """创建文生图工作流，支持从JSON文件加载或使用默认工作流"""
+    # 优先使用指定的工作流模板
+    workflow_template = request_data.get('workflow_template', '标准文生图')
+    
+    # 尝试从JSON文件加载工作流
+    workflow = workflow_selector.create_workflow(
+        request_data,
+        workflow_template
+    )
+    
+    if workflow:
+        print(f"[DEBUG] 成功从模板加载工作流: {workflow_template}")
+        return workflow
+    
+    # 如果加载失败，使用默认的硬编码工作流
+    print(f"[DEBUG] 无法加载工作流模板 {workflow_template}，使用默认工作流")
     cfg = CONFIG.get('text_to_image', {})
     batch_size = request_data.get('batch_size', 1)
     workflow = {
@@ -246,6 +262,41 @@ def generate_image_task(self, request_data: Dict[str, Any]):
         # 创建工作流
         workflow = create_image_workflow(request_data)
         print(f"[DEBUG] 任务 {task_id}: 即将向ComfyUI提交workflow")
+        print(f"[DEBUG] 任务 {task_id}: 工作流类型: {type(workflow)}")
+        print(f"[DEBUG] 任务 {task_id}: 工作流内容预览: {str(workflow)[:500]}...")
+        
+        # 验证工作流结构
+        if not workflow:
+            print(f"[ERROR] 任务 {task_id}: 工作流创建失败")
+            return {
+                "status": "failed",
+                "error_message": "工作流创建失败",
+                "progress": 20
+            }
+        
+        # 检查工作流是否有节点
+        if not isinstance(workflow, dict) or not workflow:
+            print(f"[ERROR] 任务 {task_id}: 工作流格式错误 - 不是有效的字典或为空")
+            return {
+                "status": "failed",
+                "error_message": "工作流格式错误",
+                "progress": 20
+            }
+        
+        # 检查是否有输出节点
+        output_nodes = []
+        for node_id, node_data in workflow.items():
+            if isinstance(node_data, dict) and node_data.get('class_type') in ['SaveImage', 'VHS_VideoCombine', 'SaveVideo', 'SaveAudio']:
+                output_nodes.append(f"{node_data.get('class_type')}(ID:{node_id})")
+        
+        if not output_nodes:
+            print(f"[WARNING] 任务 {task_id}: 工作流中没有找到输出节点！")
+            print(f"[WARNING] 任务 {task_id}: 这可能导致 'Prompt has no outputs' 错误")
+        else:
+            print(f"[DEBUG] 任务 {task_id}: 找到输出节点: {output_nodes}")
+        
+        print(f"[DEBUG] 任务 {task_id}: 工作流节点数量: {len(workflow)}")
+        print(f"[DEBUG] 任务 {task_id}: 工作流节点类型: {[node_data.get('class_type', 'unknown') for node_data in workflow.values() if isinstance(node_data, dict)]}")
 
         # 更新进度
         self.update_state(
@@ -255,13 +306,17 @@ def generate_image_task(self, request_data: Dict[str, Any]):
 
         # 提交到ComfyUI
         try:
+            print(f"[DEBUG] 任务 {task_id}: 准备提交到 {node['host']}:{node['port']}/prompt")
+            print(f"[DEBUG] 任务 {task_id}: 请求数据: {{'prompt': workflow}}")
+            
             response = requests.post(
                 f"http://{node['host']}:{node['port']}/prompt",
                 json={"prompt": workflow},
                 timeout=30,
                 proxies={'http': '', 'https': ''}  # 禁用代理
             )
-            print(f"[DEBUG] 任务 {task_id}: ComfyUI响应: {response.status_code}")
+            print(f"[DEBUG] 任务 {task_id}: ComfyUI响应状态码: {response.status_code}")
+            print(f"[DEBUG] 任务 {task_id}: ComfyUI响应内容: {response.text}")
         except Exception as e:
             print(f"[ERROR] 任务 {task_id}: 请求ComfyUI出错: {e}")
             raise

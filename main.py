@@ -15,6 +15,8 @@ import random
 from auth import verify_token, create_access_token
 from tasks import generate_image_task, generate_video_task, get_task_result
 from models import TaskStatus, GenerationRequest
+from workflow_manager import workflow_manager
+from workflow_selector import workflow_selector
 
 app = FastAPI(title="ComfyUI分布式服务", version="1.0.0")
 security = HTTPBearer()
@@ -77,6 +79,7 @@ async def generate_image(
     cfg_scale: float = Form(7.0),
     seed: int = Form(-1),
     batch_size: int = Form(1),
+    workflow_template: str = Form("SD35标准文生图"),
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """文生图接口"""
@@ -95,6 +98,7 @@ async def generate_image(
         "cfg_scale": cfg_scale,
         "seed": seed,
         "batch_size": batch_size,
+        "workflow_template": workflow_template,
         "task_id": task_id,
         "user_id": user["sub"]
     }
@@ -315,6 +319,46 @@ async def reset_nodes():
         "reset_stuck_nodes": reset_count,
         "timestamp": datetime.now()
     }
+
+@app.get("/api/workflows")
+async def list_workflows(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """列出所有可用的工作流模板"""
+    user = verify_token(credentials.credentials)
+    workflows = workflow_selector.get_available_workflows()
+    return {
+        "workflows": workflows,
+        "count": len(workflows),
+        "default_workflow": workflow_selector.get_default_workflow()
+    }
+
+@app.get("/api/workflows/{workflow_name}")
+async def get_workflow_info(
+    workflow_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """获取指定工作流的详细信息"""
+    user = verify_token(credentials.credentials)
+    workflow_info = workflow_selector.get_workflow_info(workflow_name)
+    if "error" not in workflow_info:
+        return workflow_info
+    else:
+        raise HTTPException(status_code=404, detail=f"工作流 {workflow_name} 不存在")
+
+@app.post("/api/workflows/{workflow_name}/set-default")
+async def set_default_workflow(
+    workflow_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """设置默认工作流"""
+    user = verify_token(credentials.credentials)
+    success = workflow_selector.set_default_workflow(workflow_name)
+    if success:
+        return {
+            "message": f"已设置 {workflow_name} 为默认工作流",
+            "default_workflow": workflow_name
+        }
+    else:
+        raise HTTPException(status_code=400, detail=f"工作流 {workflow_name} 不存在或无效")
 
 if __name__ == "__main__":
     import uvicorn

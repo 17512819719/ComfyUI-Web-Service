@@ -507,37 +507,34 @@
                     </div>
                     <div class="form-group">
                         <label for="negativePrompt">负面提示词</label>
-                        <textarea id="negativePrompt" name="negativePrompt" rows="2" placeholder="不想要的元素..."></textarea>
+                        <textarea id="negativePrompt" name="negative_prompt" rows="2" placeholder="不想要的元素..."></textarea>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div class="form-group">
                             <label for="width">宽度</label>
                             <select id="width" name="width">
-                                <option value="512">512</option>
-                                <option value="768">768</option>
-                                <option value="1024" selected>1024</option>
+                                <option value="512" selected>512</option>
                                 <option value="576">576 (9:16)</option>
+                                <option value="768">768</option>
+                                <option value="1024">1024</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="height">高度</label>
                             <select id="height" name="height">
-                                <option value="512">512</option>
+                                <option value="512" selected>512</option>
                                 <option value="768">768</option>
-                                <option value="1024" selected>1024</option>
-                                <option value="1024">1024 (9:16)</option>
+                                <option value="1024">1024</option>
                             </select>
                         </div>
                     </div>
                     <div class="form-group">
                         <label for="batchSize">批次数量</label>
-                        <select id="batchSize" name="batchSize">
-                            <option value="1" selected>1 张</option>
-                            <option value="2">2 张</option>
-                            <option value="3">3 张</option>
-                            <option value="4">4 张</option>
-                            <option value="5">5 张</option>
-                            <option value="6">6 张</option>
+                        <select id="batchSize" name="batch_size">
+                            <option value="1" selected>1张</option>
+                            <option value="2">2张</option>
+                            <option value="4">4张</option>
+                            <option value="8">8张</option>
                         </select>
                     </div>
                     
@@ -554,7 +551,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="cfgScale">CFG Scale</label>
-                                    <input type="number" id="cfgScale" name="cfgScale" value="7" min="1" max="20" step="0.5">
+                                    <input type="number" id="cfgScale" name="cfg_scale" value="7" min="1" max="20" step="0.5">
                                 </div>
                             </div>
                         </div>
@@ -596,7 +593,7 @@
                     </div>
                     <div class="form-group">
                         <label for="motionStrength">运动强度</label>
-                        <input type="range" id="motionStrength" name="motionStrength" min="0.1" max="1.0" step="0.1" value="0.8">
+                        <input type="range" id="motionStrength" name="motion_strength" min="0.1" max="1.0" step="0.1" value="0.8">
                         <span id="motionValue">0.8</span>
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
