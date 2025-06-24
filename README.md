@@ -559,6 +559,7 @@ pytest
 
 ### 🆕 最近更新
 
+- 重构：实现前后端彻底分离，后端代码、依赖、配置全部归档于 backend 目录，前端管理后台独立于 frontend/admin 目录，目录结构和启动方式同步更新，便于维护和扩展。
 - 重构文生图工作流模块，工作流不再硬编码，通过特定 workflow json 文件实现，支持自定义和扩展。
 - 新增 `workflow_manager.py`、`workflow_selector.py`，支持多工作流配置和选择。
 - workflows 目录结构调整，支持多种工作流 json 文件。
