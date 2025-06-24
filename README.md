@@ -476,7 +476,6 @@ ComfyUI-Web-Service/
 │   ├── workflows/          # 工作流配置
 │   ├── outputs/            # 输出目录
 │   ├── uploads/            # 上传目录
-│   ├── nginx-1.27.5/       # nginx相关
 │   ├── Redis-x64-3.2.100/  # redis相关
 │   ├── config.yaml         # 配置文件
 │   ├── requirements.txt    # Python依赖
@@ -488,6 +487,7 @@ ComfyUI-Web-Service/
 │
 ├── docker-compose.yml
 ├── Dockerfile
+├── Client/                 # Web客户端
 └── ...
 ```
 
@@ -627,42 +627,13 @@ pytest
 
 **Made with ❤️ by the ComfyUI Web Service Team**
 
-[⭐ Star this project](https://github.com/your-repo/comfyui-web-service)
+[⭐ Star this project](https://github.com/17512819719/comfyui-web-service)
 
 </div>
-
-## 目录结构（前后端分离重构后）
-
-```
-ComfyUI-Web-Service/
-│
-├── backend/                # 后端代码（FastAPI等）
-│   ├── app/                # 业务代码（API、models、utils等）
-│   ├── workflows/          # 工作流配置
-│   ├── outputs/            # 输出目录
-│   ├── uploads/            # 上传目录
-│   ├── nginx-1.27.5/       # nginx相关
-│   ├── Redis-x64-3.2.100/  # redis相关
-│   ├── config.yaml         # 配置文件
-│   ├── requirements.txt    # Python依赖
-│   └── ...
-│
-├── frontend/               # 前端代码（Vue项目）
-│   ├── admin/              # 管理后台前端
-│   └── ...
-│
-├── docker-compose.yml
-├── Dockerfile
-└── ...
-```
 
 ## 说明
 - `backend/`：后端服务，包含API、业务逻辑、配置、第三方服务等。
 - `frontend/`：前端项目，推荐使用 Vue3 + Vite。
-
----
-
-> 本项目已重构为前后端分离结构，便于开发和维护。
 
 ## 后端管理API（/admin）
 - `/admin/login`：管理员登录，返回JWT token
