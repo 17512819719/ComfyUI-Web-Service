@@ -1,271 +1,605 @@
 # ComfyUI Web Service
 
-这是一个基于FastAPI和Celery的ComfyUI分布式服务，提供文生图和图生视频的API接口。
+<div align="center">
 
-## 功能特性
+![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
+![Celery](https://img.shields.io/badge/Celery-5.3+-orange.svg)
+![Redis](https://img.shields.io/badge/Redis-3.2+-red.svg)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-- 🎨 文生图API接口
-- 🎬 图生视频API接口
-- 🔄 异步任务处理
-- 📊 任务进度监控
-- 🌐 分布式节点支持
-- 🚀 自动服务管理
-- ⚡ 高性能Redis缓存
-- 📝 完整的API文档
+**基于FastAPI和Celery的ComfyUI分布式AI服务**
 
-## 系统要求
+[🚀 快速开始](#快速开始) • [📖 API文档](#api文档) • [⚙️ 配置说明](#配置说明) • [🔧 故障排除](#故障排除)
 
-- Python 3.8+
-- Redis
-- ComfyUI（需要单独安装和运行）
-- 足够的GPU内存用于AI模型推理
+</div>
 
-## 快速开始
+---
 
-### 1. 安装依赖
+## 📋 目录
+
+- [项目简介](#项目简介)
+- [功能特性](#功能特性)
+- [系统架构](#系统架构)
+- [系统要求](#系统要求)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [API文档](#api文档)
+- [客户端使用](#客户端使用)
+- [故障排除](#故障排除)
+- [开发指南](#开发指南)
+- [更新日志](#更新日志)
+
+## 🎯 项目简介
+
+ComfyUI Web Service 是一个基于 FastAPI 和 Celery 的分布式 AI 服务，为 ComfyUI 提供 RESTful API 接口。支持文生图（Text-to-Image）和图生视频（Image-to-Video）功能，具备异步任务处理、进度监控、分布式节点支持等特性。
+
+### 主要应用场景
+
+- 🤖 AI 内容创作平台
+- 🎨 图像生成服务
+- 🎬 视频制作工具
+- 🔄 批量图像处理
+- 🌐 分布式 AI 推理
+
+## ✨ 功能特性
+
+| 功能模块 | 描述 | 状态 |
+|---------|------|------|
+| 🎨 **文生图** | 支持多种采样器和模型，可配置参数 | ✅ |
+| 🎬 **图生视频** | 基于图像生成动态视频内容 | ✅ |
+| 🔄 **异步处理** | Celery 任务队列，支持长时间运行任务 | ✅ |
+| 📊 **进度监控** | 实时任务状态和进度查询 | ✅ |
+| 🌐 **分布式支持** | 多节点 ComfyUI 服务负载均衡 | ✅ |
+| 🔐 **身份认证** | JWT Token 认证机制 | ✅ |
+| 📁 **文件管理** | 自动文件上传、下载和清理 | ✅ |
+| 🚀 **服务管理** | 一键启动/停止所有服务 | ✅ |
+| 📝 **API文档** | 自动生成的 Swagger 文档 | ✅ |
+| 🖥️ **Web客户端** | 内置现代化 Web 界面 | ✅ |
+
+## 🏗️ 系统架构
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web Client    │    │   FastAPI       │    │   Celery        │
+│   (HTML/JS)     │◄──►│   (API Server)  │◄──►│   (Task Queue)  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                       │
+                                ▼                       ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │   Redis         │    │   ComfyUI       │
+                       │   (Cache/Queue) │    │   (AI Engine)   │
+                       └─────────────────┘    └─────────────────┘
+```
+
+### 组件说明
+
+- **FastAPI**: Web API 服务器，处理 HTTP 请求
+- **Celery**: 异步任务队列，处理长时间运行的 AI 任务
+- **Redis**: 消息代理和缓存存储
+- **ComfyUI**: AI 模型推理引擎
+- **Web Client**: 现代化 Web 界面，提供用户交互
+
+## 📋 系统要求
+
+### 最低配置
+
+- **操作系统**: Windows 10/11, Linux, macOS
+- **Python**: 3.8 或更高版本
+- **内存**: 8GB RAM
+- **存储**: 10GB 可用空间
+- **网络**: 稳定的网络连接
+
+### 推荐配置
+
+- **操作系统**: Windows 11 或 Ubuntu 20.04+
+- **Python**: 3.9 或更高版本
+- **内存**: 16GB RAM 或更高
+- **GPU**: NVIDIA GPU (8GB+ VRAM)
+- **存储**: SSD 存储，50GB+ 可用空间
+
+### 必需软件
+
+- ✅ Python 3.8+
+- ✅ ComfyUI (需要单独安装)
+- ✅ Redis (已包含在项目中)
+- ✅ 足够的 GPU 内存用于 AI 模型推理
+
+## 🚀 快速开始
+
+### 1. 环境准备
+
+确保已安装 Python 3.8+ 和 ComfyUI：
 
 ```bash
+# 检查 Python 版本
+python --version
+
+# 安装项目依赖
 pip install -r requirements.txt
 ```
 
-### 2. 配置ComfyUI
+### 2. 配置 ComfyUI
 
-在 `config.yaml` 中配置ComfyUI的安装路径：
+编辑 `config.yaml` 文件，配置 ComfyUI 路径和端口：
 
 ```yaml
-# ComfyUI配置
 comfyui:
-  # ComfyUI安装路径，支持多个路径，按优先级查找
-  paths:
-    - "E:\\ComfyUI\\ComfyUI\\python.exe"  # 默认路径
-    - "C:\\ComfyUI\\ComfyUI\\python.exe"
-    - "D:\\ComfyUI\\ComfyUI\\python.exe"
-  # ComfyUI服务端口
   port: 8188
-  # ComfyUI输出目录
   output_dir: "E:\\ComfyUI\\ComfyUI\\output"
 ```
 
-### 3. 启动ComfyUI服务
+### 3. 启动 ComfyUI 服务
 
-**重要**: 请先手动启动ComfyUI服务，然后再启动其他服务。
+**重要**: 必须先启动 ComfyUI 服务，再启动其他服务。
 
 ```bash
-# 进入ComfyUI安装目录
+# 进入 ComfyUI 安装目录
 cd E:\ComfyUI\ComfyUI
 
-# 启动ComfyUI服务
+# 启动 ComfyUI 服务
 python main.py --listen 0.0.0.0 --port 8188
 ```
 
-### 4. 启动其他服务
-
-#### 方式一：使用标准启动脚本
+### 4. 启动 Web Service
 
 ```bash
+# 启动所有服务（Redis、Celery Worker、FastAPI）
 python start_services.py
 ```
 
-#### 方式二：使用改进版启动脚本（推荐）
+### 5. 访问服务
+
+- **Web 客户端**: http://localhost:8000
+- **API 文档**: http://localhost:8000/docs
+- **ComfyUI 界面**: http://localhost:8188
+
+### 6. 停止服务
 
 ```bash
-python start_services_improved.py
-```
-
-启动脚本会自动：
-- 检测并启动Redis服务
-- 检测ComfyUI服务是否运行（如果未运行会提示并退出）
-- 启动Celery Worker
-- 启动FastAPI服务
-
-### 5. 停止服务
-
-```bash
+# 停止 Web Service（Redis、Celery Worker、FastAPI）
 python stop_services.py
+
+# 手动停止 ComfyUI 服务
+# 在 ComfyUI 终端按 Ctrl+C
 ```
 
-**注意**: 此脚本只会停止Redis、Celery Worker和FastAPI服务，ComfyUI服务需要手动停止。
+## ⚙️ 配置说明
 
-### 6. 检查服务状态
-
-```bash
-python test_services.py
-```
-
-## 服务说明
-
-### 启动的服务
-
-1. **Redis服务** (端口: 6379)
-   - 用于任务队列和缓存
-   - 自动检测项目目录下的Redis安装
-
-2. **ComfyUI服务** (端口: 8188，可配置)
-   - AI模型推理服务
-   - 自动检测ComfyUI安装路径
-   - 支持自定义端口配置
-
-3. **Celery Worker** 
-   - 异步任务处理
-   - 与Redis配合工作
-
-4. **FastAPI服务** (端口: 8000)
-   - Web API接口
-   - 自动生成API文档
-
-### 服务地址
-
-- FastAPI服务: http://localhost:8000
-- API文档: http://localhost:8000/docs
-- ComfyUI服务: http://localhost:8188 (可配置)
-
-## 配置说明
-
-### ComfyUI配置
-
-在 `config.yaml` 中可以配置ComfyUI相关设置：
+### 配置文件结构
 
 ```yaml
+# ComfyUI 配置
 comfyui:
-  # ComfyUI安装路径列表，按优先级查找
-  paths:
-    - "E:\\ComfyUI\\ComfyUI\\python.exe"
-    - "C:\\ComfyUI\\ComfyUI\\python.exe"
-  # ComfyUI服务端口
-  port: 8188
-  # ComfyUI输出目录
-  output_dir: "E:\\ComfyUI\\ComfyUI\\output"
-```
+  port: 8188                    # ComfyUI 服务端口
+  output_dir: "E:\\ComfyUI\\ComfyUI\\output"  # 输出目录
 
-### 模型配置
-
-```yaml
+# 文生图配置
 text_to_image:
-  ckpt_name: realisticVisionV60B1_v51HyperVAE.safetensors
-  sampler_name: euler
-  scheduler: normal
-  default_width: 512
-  default_height: 512
-  default_steps: 20
-  default_cfg_scale: 7.0
+  ckpt_name: realisticVisionV60B1_v51HyperVAE.safetensors  # 模型文件
+  sampler_name: euler          # 采样器
+  scheduler: normal            # 调度器
+  default_width: 512           # 默认宽度
+  default_height: 512          # 默认高度
+  default_steps: 20            # 默认步数
+  default_cfg_scale: 7.0       # 默认 CFG 比例
 
+# 图生视频配置
 image_to_video:
-  model_name: realisticVisionV60B1_v51HyperVAE.safetensors
-  default_fps: 8
-  default_duration: 5.0
-  default_motion_strength: 0.8
+  model_name: realisticVisionV60B1_v51HyperVAE.safetensors  # 模型文件
+  default_fps: 8               # 默认帧率
+  default_duration: 5.0        # 默认时长
+  default_motion_strength: 0.8 # 默认运动强度
 ```
 
-## API使用
+### 环境变量
 
-### 文生图
+| 变量名 | 默认值 | 描述 |
+|--------|--------|------|
+| `COMFYUI_PORT` | 8188 | ComfyUI 服务端口 |
+| `REDIS_URL` | redis://localhost:6379/0 | Redis 连接地址 |
+| `API_HOST` | 0.0.0.0 | API 服务器主机 |
+| `API_PORT` | 8000 | API 服务器端口 |
+
+## 📖 API文档
+
+### 认证
+
+所有 API 请求都需要 Bearer Token 认证：
 
 ```bash
-curl -X POST "http://localhost:8000/generate_image" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "prompt": "a beautiful landscape",
-       "negative_prompt": "blurry, low quality",
-       "width": 512,
-       "height": 512
-     }'
+# 登录获取 Token
+curl -X POST "http://localhost:8000/api/auth/login" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "username=z&password=z"
+
+# 使用 Token
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     http://localhost:8000/api/endpoint
 ```
 
-### 图生视频
+### 文生图 API
+
+#### 提交生成任务
 
 ```bash
-curl -X POST "http://localhost:8000/generate_video" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "image_path": "path/to/image.jpg",
-       "prompt": "moving landscape",
-       "negative_prompt": "static, still"
-     }'
+curl -X POST "http://localhost:8000/api/generate/image" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "prompt=a beautiful landscape&width=512&height=512"
 ```
 
-## 故障排除
+**请求参数**:
 
-### 1. ComfyUI启动失败
+| 参数 | 类型 | 必需 | 默认值 | 描述 |
+|------|------|------|--------|------|
+| `prompt` | string | ✅ | - | 正向提示词 |
+| `negative_prompt` | string | ❌ | "" | 负向提示词 |
+| `width` | integer | ❌ | 512 | 图像宽度 |
+| `height` | integer | ❌ | 512 | 图像高度 |
+| `steps` | integer | ❌ | 20 | 采样步数 |
+| `cfg_scale` | float | ❌ | 7.0 | CFG 比例 |
+| `seed` | integer | ❌ | -1 | 随机种子 |
+| `batch_size` | integer | ❌ | 1 | 批量大小 |
 
-**问题**: ComfyUI服务无法启动
+**响应示例**:
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "message": "任务已提交到队列"
+}
+```
+
+### 图生视频 API
+
+#### 提交视频生成任务
+
+```bash
+curl -X POST "http://localhost:8000/api/generate/video" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -F "image=@input.jpg" \
+     -F "duration=5.0" \
+     -F "fps=8"
+```
+
+**请求参数**:
+
+| 参数 | 类型 | 必需 | 默认值 | 描述 |
+|------|------|------|--------|------|
+| `image` | file | ✅ | - | 输入图像文件 |
+| `duration` | float | ❌ | 5.0 | 视频时长（秒） |
+| `fps` | integer | ❌ | 8 | 帧率 |
+| `motion_strength` | float | ❌ | 0.8 | 运动强度 |
+
+### 任务状态 API
+
+#### 查询任务状态
+
+```bash
+curl -X GET "http://localhost:8000/api/task/status/TASK_ID" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**响应示例**:
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "progress": 75,
+  "message": "正在生成图像...",
+  "result_url": null,
+  "error_message": null
+}
+```
+
+#### 下载结果
+
+```bash
+curl -X GET "http://localhost:8000/api/download/TASK_ID" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -o "result.png"
+```
+
+### 系统状态 API
+
+#### 健康检查
+
+```bash
+curl -X GET "http://localhost:8000/api/health"
+```
+
+## 🖥️ 客户端使用
+
+项目内置了现代化的 Web 客户端，提供直观的用户界面：
+
+### 访问客户端
+
+1. 启动服务后，访问 http://localhost:8000
+2. 使用默认账号登录：
+   - 用户名: `z`
+   - 密码: `z`
+
+### 功能特性
+
+- 🎨 **文生图界面**: 直观的参数配置和实时预览
+- 🎬 **图生视频界面**: 拖拽上传和参数调整
+- 📊 **任务监控**: 实时任务状态和进度显示
+- 📁 **文件管理**: 结果文件下载和管理
+- 🔄 **批量处理**: 支持批量图像生成
+
+## 🔧 故障排除
+
+### 常见问题
+
+#### 1. ComfyUI 启动失败
+
+**症状**: 启动脚本提示 "ComfyUI 服务未运行"
 
 **解决方案**:
-1. 检查ComfyUI是否正确安装
-2. 确保ComfyUI目录下有 `main.py` 文件
-3. 手动启动ComfyUI: `python main.py --listen 0.0.0.0 --port 8188`
-4. 确保ComfyUI服务正在运行后再启动其他服务
+```bash
+# 1. 检查 ComfyUI 是否正确安装
+ls E:\ComfyUI\ComfyUI\main.py
 
-### 2. 启动脚本提示ComfyUI未运行
+# 2. 手动启动 ComfyUI
+cd E:\ComfyUI\ComfyUI
+python main.py --listen 0.0.0.0 --port 8188
 
-**问题**: 启动脚本提示"ComfyUI服务未运行"
+# 3. 验证服务状态
+curl http://localhost:8188/system_stats
+```
 
-**解决方案**:
-1. 先手动启动ComfyUI服务
-2. 确保ComfyUI在正确的端口运行（默认8188）
-3. 使用 `python test_services.py` 检查ComfyUI状态
-4. 然后再运行启动脚本
+#### 2. Redis 启动失败
 
-### 3. Redis启动失败
-
-**问题**: Redis服务无法启动
+**症状**: Redis 服务无法启动
 
 **解决方案**:
-1. 确保Redis文件夹在项目根目录下
-2. 手动启动Redis: `Redis-x64-3.2.100\redis-server.exe`
-3. 或者安装Redis到系统PATH中
+```bash
+# 1. 检查 Redis 文件是否存在
+ls Redis-x64-3.2.100/redis-server.exe
 
-### 4. ComfyUI连接失败
+# 2. 手动启动 Redis
+Redis-x64-3.2.100\redis-server.exe
 
-**问题**: 无法连接到ComfyUI服务
+# 3. 验证 Redis 连接
+python -c "import redis; r=redis.Redis(); r.ping()"
+```
 
-**解决方案**:
-1. 确保ComfyUI正在运行并可以访问
-2. 检查端口配置是否正确
-3. 检查防火墙设置
-4. 使用 `python test_services.py` 检查服务状态
+#### 3. 端口冲突
 
-### 5. 端口冲突
-
-**问题**: 端口被占用
+**症状**: 端口被占用错误
 
 **解决方案**:
-1. 在 `config.yaml` 中修改ComfyUI端口
-2. 使用 `python stop_services.py` 停止其他服务
-3. 检查是否有其他程序占用端口
+```bash
+# 1. 检查端口占用
+netstat -ano | findstr :8188
+netstat -ano | findstr :8000
 
-### 6. 服务启动顺序
+# 2. 修改配置文件中的端口
+# 编辑 config.yaml 文件
 
-**正确的启动顺序**:
-1. 先启动ComfyUI服务
-2. 再运行启动脚本启动其他服务（Redis、Celery Worker、FastAPI）
+# 3. 停止占用端口的进程
+taskkill /PID <进程ID> /F
+```
 
-**停止顺序**:
-1. 使用停止脚本停止其他服务
-2. 手动停止ComfyUI服务
+#### 4. GPU 内存不足
 
-## 开发说明
+**症状**: CUDA out of memory 错误
+
+**解决方案**:
+- 减少 `batch_size` 参数
+- 降低图像分辨率
+- 关闭其他 GPU 应用程序
+- 使用 CPU 模式（如果支持）
+
+#### 5. 模型文件缺失
+
+**症状**: 模型加载失败
+
+**解决方案**:
+```bash
+# 1. 检查模型文件路径
+ls E:\ComfyUI\ComfyUI\models\checkpoints\
+
+# 2. 下载所需模型文件
+# 将模型文件放入 ComfyUI/models/checkpoints/ 目录
+
+# 3. 更新配置文件中的模型名称
+# 编辑 config.yaml 文件
+```
+
+### 日志调试
+
+#### 查看服务日志
+
+```bash
+# FastAPI 日志
+tail -f logs/fastapi.log
+
+# Celery Worker 日志
+tail -f logs/celery.log
+
+# ComfyUI 日志
+# 查看 ComfyUI 控制台输出
+```
+
+#### 启用调试模式
+
+```bash
+# 启动调试模式
+python start_services.py --debug
+
+# 或手动启动带详细日志
+uvicorn main:app --reload --log-level debug
+```
+
+### 性能优化
+
+#### 系统优化建议
+
+1. **GPU 优化**:
+   - 使用最新显卡驱动
+   - 启用 CUDA 优化
+   - 监控 GPU 温度和功耗
+
+2. **内存优化**:
+   - 增加系统内存
+   - 使用 SSD 存储
+   - 定期清理临时文件
+
+3. **网络优化**:
+   - 使用有线网络连接
+   - 配置合适的防火墙规则
+   - 优化网络延迟
+
+## 👨‍💻 开发指南
 
 ### 项目结构
 
-## 更新日志
+```
+ComfyUI-Web-Service/
+├── main.py                 # FastAPI 主应用
+├── tasks.py               # Celery 任务定义
+├── models.py              # 数据模型
+├── auth.py                # 认证模块
+├── config.yaml            # 配置文件
+├── requirements.txt       # Python 依赖
+├── start_services.py      # 服务启动脚本
+├── stop_services.py       # 服务停止脚本
+├── Client/                # Web 客户端
+│   └── Client-ComfyUI.html
+├── workflows/             # ComfyUI 工作流
+├── uploads/               # 上传文件目录
+├── outputs/               # 输出文件目录
+└── Redis-x64-3.2.100/     # Redis 服务
+```
 
-### v1.2.0
-- 🔄 修改ComfyUI服务管理方式
-- ✨ ComfyUI服务需要手动启动，启动脚本只负责检测
-- ✨ 停止脚本不再停止ComfyUI服务
-- 📝 更新文档说明新的启动方式
-- 🐛 修复服务启动顺序问题
+### 开发环境设置
 
-### v1.1.0
-- ✨ 新增ComfyUI服务自动检测和启动
+```bash
+# 1. 克隆项目
+git clone <repository-url>
+cd ComfyUI-Web-Service
+
+# 2. 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# 或
+venv\Scripts\activate     # Windows
+
+# 3. 安装依赖
+pip install -r requirements.txt
+
+# 4. 安装开发依赖
+pip install pytest black flake8 mypy
+
+# 5. 配置开发环境
+cp config.yaml.example config.yaml
+# 编辑 config.yaml
+```
+
+### 代码规范
+
+```bash
+# 代码格式化
+black .
+
+# 代码检查
+flake8 .
+
+# 类型检查
+mypy .
+
+# 运行测试
+pytest
+```
+
+### 添加新功能
+
+1. **添加新的 API 端点**:
+   - 在 `main.py` 中定义路由
+   - 在 `models.py` 中定义数据模型
+   - 在 `tasks.py` 中定义 Celery 任务
+
+2. **添加新的 ComfyUI 工作流**:
+   - 在 `workflows/` 目录中添加 JSON 文件
+   - 在 `tasks.py` 中实现工作流逻辑
+
+3. **扩展客户端功能**:
+   - 修改 `Client/Client-ComfyUI.html`
+   - 添加新的 JavaScript 函数
+   - 更新 CSS 样式
+
+### 贡献指南
+
+1. Fork 项目
+2. 创建功能分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
+
+## 📝 更新日志
+
+### v1.2.0 (2024-01-XX)
+
+#### 🚀 新功能
+- ✨ 重构服务管理方式，ComfyUI 需要手动启动
+- ✨ 改进服务状态检测和错误处理
+- ✨ 优化配置文件结构和参数验证
+
+#### 🔧 改进
+- 🔄 简化启动流程，提高稳定性
+- 📝 更新文档和故障排除指南
+- 🐛 修复多个已知问题
+
+#### 🐛 修复
+- 修复服务启动顺序问题
+- 修复配置文件加载错误
+- 修复任务状态更新问题
+
+### v1.1.0 (2024-01-XX)
+
+#### 🚀 新功能
+- ✨ 新增 ComfyUI 服务自动检测和启动
 - ✨ 新增配置文件支持
 - ✨ 改进服务管理脚本
 - ✨ 新增服务状态检测功能
-- 🐛 修复多个已知问题
-- 📝 更新文档
 
-### v1.0.0
-- 🎉 初始版本发布
+#### 🔧 改进
+- 🔄 优化任务队列管理
+- 📊 改进进度监控机制
+- 🛡️ 增强错误处理和日志记录
+
+### v1.0.0 (2024-01-XX)
+
+#### 🎉 初始版本
 - ✨ 基础文生图和图生视频功能
-- ✨ FastAPI + Celery架构
-- ✨ Redis缓存支持
+- ✨ FastAPI + Celery 架构
+- ✨ Redis 缓存支持
+- ✨ JWT 认证机制
+- ✨ Web 客户端界面
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+## 🤝 支持
+
+如果您遇到问题或有建议，请：
+
+1. 📖 查看 [故障排除](#故障排除) 部分
+2. 🔍 搜索 [Issues](../../issues)
+3. 💬 创建新的 Issue
+4. 📧 联系维护者
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the ComfyUI Web Service Team**
+
+[⭐ Star this project](https://github.com/your-repo/comfyui-web-service)
+
+</div>
