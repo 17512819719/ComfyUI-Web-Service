@@ -1,5 +1,15 @@
 # ComfyUI Web Service
 
+# 2024年6月小重构说明
+
+本次重构主要内容如下：
+
+- 实现了前后端彻底分离，后端代码、依赖、配置全部归档于 backend 目录，前端管理后台独立于 frontend/admin 目录
+- 后端业务代码全部归档于 backend/app 包，import 路径已修正为相对导入，便于维护和扩展
+- Redis 相关依赖已迁移至 backend/，后端依赖统一管理
+- 移除了暂时用不到的 nginx 相关目录，项目结构更清晰
+- 目录结构和启动方式已在文档中更新，便于新成员理解和使用
+
 <div align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
@@ -460,20 +470,25 @@ uvicorn main:app --reload --log-level debug
 
 ```
 ComfyUI-Web-Service/
-├── main.py                 # FastAPI 主应用
-├── tasks.py               # Celery 任务定义
-├── models.py              # 数据模型
-├── auth.py                # 认证模块
-├── config.yaml            # 配置文件
-├── requirements.txt       # Python 依赖
-├── start_services.py      # 服务启动脚本
-├── stop_services.py       # 服务停止脚本
-├── Client/                # Web 客户端
-│   └── Client-ComfyUI.html
-├── workflows/             # ComfyUI 工作流
-├── uploads/               # 上传文件目录
-├── outputs/               # 输出文件目录
-└── Redis-x64-3.2.100/     # Redis 服务
+│
+├── backend/                # 后端代码（FastAPI等）
+│   ├── app/                # 业务代码（API、models、utils等）
+│   ├── workflows/          # 工作流配置
+│   ├── outputs/            # 输出目录
+│   ├── uploads/            # 上传目录
+│   ├── nginx-1.27.5/       # nginx相关
+│   ├── Redis-x64-3.2.100/  # redis相关
+│   ├── config.yaml         # 配置文件
+│   ├── requirements.txt    # Python依赖
+│   └── ...
+│
+├── frontend/               # 前端代码（Vue项目）
+│   ├── admin/              # 管理后台前端
+│   └── ...
+│
+├── docker-compose.yml
+├── Dockerfile
+└── ...
 ```
 
 ### 开发环境设置
@@ -615,3 +630,71 @@ pytest
 [⭐ Star this project](https://github.com/your-repo/comfyui-web-service)
 
 </div>
+
+## 目录结构（前后端分离重构后）
+
+```
+ComfyUI-Web-Service/
+│
+├── backend/                # 后端代码（FastAPI等）
+│   ├── app/                # 业务代码（API、models、utils等）
+│   ├── workflows/          # 工作流配置
+│   ├── outputs/            # 输出目录
+│   ├── uploads/            # 上传目录
+│   ├── nginx-1.27.5/       # nginx相关
+│   ├── Redis-x64-3.2.100/  # redis相关
+│   ├── config.yaml         # 配置文件
+│   ├── requirements.txt    # Python依赖
+│   └── ...
+│
+├── frontend/               # 前端代码（Vue项目）
+│   ├── admin/              # 管理后台前端
+│   └── ...
+│
+├── docker-compose.yml
+├── Dockerfile
+└── ...
+```
+
+## 说明
+- `backend/`：后端服务，包含API、业务逻辑、配置、第三方服务等。
+- `frontend/`：前端项目，推荐使用 Vue3 + Vite。
+
+---
+
+> 本项目已重构为前后端分离结构，便于开发和维护。
+
+## 后端管理API（/admin）
+- `/admin/login`：管理员登录，返回JWT token
+- `/admin/workflows`：获取所有工作流列表
+- `/admin/workflow_config?name=xxx`：获取指定工作流参数
+- `/admin/module_config?module=xxx`：获取模块配置
+- `/admin/module_config`（POST）：设置模块配置
+- 需在 `backend/admin_config.yaml` 设置管理员密码
+- 需在 `main.py` 挂载 `admin_api.router`（已自动完成）
+
+## 前端管理后台开发结构
+- 采用 Vue3 + Vite，代码在 `frontend/admin/`
+- 页面结构：
+  - `src/views/Login.vue` 管理员登录页
+  - `src/views/AdminHome.vue` 管理主页面（可扩展为多模块管理）
+  - `src/router/index.js` 路由配置，支持登录保护
+  - `src/axios.js` 全局axios拦截器，自动带token，401跳转登录
+- 推荐开发流程：
+  1. 登录页调用 `/admin/login` 获取token，存localStorage
+  2. 主页面通过token访问管理API，支持工作流/模块配置管理
+  3. 可根据实际需求扩展更多管理功能和UI
+
+## 启动方式
+- 后端：
+  - `start_all.bat`/`stop_all.bat` 支持任意目录自动切换，推荐直接双击或命令行运行
+  - 或手动 `cd backend && python start_services.py`
+- 前端：
+  - `cd frontend/admin && npm install && npm run dev`
+  - 浏览器访问 http://localhost:5173/
+- Docker：
+  - `docker-compose up --build` 支持一键启动后端服务
+
+---
+
+> 项目结构、启动方式、管理后台API和前端开发流程均已标准化，适合团队协作和持续扩展。
