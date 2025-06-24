@@ -542,6 +542,18 @@ pytest
 
 ## 📝 更新日志
 
+### 🆕 最近更新
+
+- 重构文生图工作流模块，工作流不再硬编码，通过特定 workflow json 文件实现，支持自定义和扩展。
+- 新增 `workflow_manager.py`、`workflow_selector.py`，支持多工作流配置和选择。
+- workflows 目录结构调整，支持多种工作流 json 文件。
+
+### 🗂️ 工作流模块说明
+
+- `workflow_manager.py`：用于加载和管理不同的工作流配置。
+- `workflow_selector.py`：用于选择和切换当前使用的工作流。
+- `workflows/`：存放所有可用的工作流 json 文件，支持自定义扩展。
+
 ### v1.2.0 (2024-01-XX)
 
 #### 🚀 新功能
