@@ -2,12 +2,12 @@ import sys
 import os
 # 移除sys.path.insert，因为现在所有文件都在根目录
 
-from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, Form, Query
+from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, Form, Query, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import uuid
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 import json
 from datetime import datetime
 import random
@@ -17,9 +17,11 @@ from .tasks import generate_image_task, generate_video_task, get_task_result
 from .models import TaskStatus, GenerationRequest
 from .workflow_manager import workflow_manager
 from .workflow_selector import workflow_selector
-from . import admin_api
+from .admin_api.routers import router as admin_router
+from .config_manager import config_manager
 
 app = FastAPI(title="ComfyUI分布式服务", version="1.0.0")
+
 security = HTTPBearer()
 
 # CORS配置
@@ -361,7 +363,45 @@ async def set_default_workflow(
     else:
         raise HTTPException(status_code=400, detail=f"工作流 {workflow_name} 不存在或无效")
 
-app.include_router(admin_api.router)
+@app.get("/api/config/defaults")
+def get_default_config():
+    image_params = config_manager.get_image_generation_params('标准文生图')
+    video_params = config_manager.get_video_generation_params('万相2.1图生视频')
+    return {
+        "default_steps": image_params["steps"],
+        "default_cfg_scale": image_params["cfg_scale"],
+        "default_width": image_params["width"],
+        "default_height": image_params["height"],
+        "default_batch_size": 1,
+        "width_options": [512, 768, 936, 1024],
+        "height_options": [512, 768, 1024, 1664],
+        "batch_size_options": [1, 2, 4, 8],
+        "default_duration": video_params["duration"],
+        "default_fps": video_params["fps"],
+        "default_motion_strength": video_params["motion_strength"],
+        "fps_options": [8, 12, 24],
+        "duration_min": 1,
+        "duration_max": 10,
+        "motion_min": 0.1,
+        "motion_max": 1.0,
+        "motion_step": 0.1
+    }
+
+@app.post("/api/workflows/{workflow_name}/execute")
+async def execute_workflow(
+    workflow_name: str,
+    parameters: Dict[str, Any] = Body(..., embed=True),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """执行指定工作流，参数化渲染"""
+    user = verify_token(credentials.credentials)
+    try:
+        result = workflow_selector.create_workflow(parameters, workflow_name)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 400
+
+app.include_router(admin_router)
 
 if __name__ == "__main__":
     import uvicorn

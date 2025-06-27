@@ -513,18 +513,19 @@
                         <div class="form-group">
                             <label for="width">宽度</label>
                             <select id="width" name="width">
-                                <option value="512" selected>512</option>
-                                <option value="576">576 (9:16)</option>
+                                <option value="512" >512</option>
                                 <option value="768">768</option>
+                                <option value="936" selected>936</option>
                                 <option value="1024">1024</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="height">高度</label>
                             <select id="height" name="height">
-                                <option value="512" selected>512</option>
+                                <option value="512" >512</option>
                                 <option value="768">768</option>
                                 <option value="1024">1024</option>
+                                <option value="1664" selected>1664</option>
                             </select>
                         </div>
                     </div>
@@ -547,11 +548,11 @@
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div class="form-group">
                                     <label for="steps">采样步数</label>
-                                    <input type="number" id="steps" name="steps" value="20" min="1" max="100">
+                                    <input type="number" id="steps" name="steps" min="1" max="100" step="1">
                                 </div>
                                 <div class="form-group">
                                     <label for="cfgScale">CFG Scale</label>
-                                    <input type="number" id="cfgScale" name="cfg_scale" value="7" min="1" max="20" step="0.5">
+                                    <input type="number" id="cfgScale" name="cfg_scale" min="1" max="20" step="0.1">
                                 </div>
                             </div>
                         </div>
@@ -653,6 +654,34 @@
             if (apiInput) {
                 apiInput.value = localStorage.getItem('apiServer') || 'http://192.168.110.11:8000';
             }
+
+            // 新增：自动获取后端所有默认参数和选项
+            fetch(`${API_BASE}/config/defaults`).then(r => r.json()).then(data => {
+                // 文生图
+                if (data.default_steps !== undefined) document.getElementById('steps').value = data.default_steps;
+                if (data.default_cfg_scale !== undefined) document.getElementById('cfgScale').value = data.default_cfg_scale;
+                if (data.default_width !== undefined) document.getElementById('width').value = data.default_width;
+                if (data.default_height !== undefined) document.getElementById('height').value = data.default_height;
+                if (data.default_batch_size !== undefined) document.getElementById('batchSize').value = data.default_batch_size;
+                // 可选项
+                if (data.width_options) setSelectOptions('width', data.width_options, data.default_width);
+                if (data.height_options) setSelectOptions('height', data.height_options, data.default_height);
+                if (data.batch_size_options) setSelectOptions('batchSize', data.batch_size_options, data.default_batch_size);
+
+                // 图生视频
+                if (data.default_duration !== undefined) document.getElementById('duration').value = data.default_duration;
+                if (data.default_fps !== undefined) document.getElementById('fps').value = data.default_fps;
+                if (data.default_motion_strength !== undefined) {
+                    document.getElementById('motionStrength').value = data.default_motion_strength;
+                    document.getElementById('motionValue').textContent = data.default_motion_strength;
+                }
+                if (data.fps_options) setSelectOptions('fps', data.fps_options, data.default_fps);
+                if (data.duration_min !== undefined) document.getElementById('duration').min = data.duration_min;
+                if (data.duration_max !== undefined) document.getElementById('duration').max = data.duration_max;
+                if (data.motion_min !== undefined) document.getElementById('motionStrength').min = data.motion_min;
+                if (data.motion_max !== undefined) document.getElementById('motionStrength').max = data.motion_max;
+                if (data.motion_step !== undefined) document.getElementById('motionStrength').step = data.motion_step;
+            });
 
             // 检查是否已登录
             authToken = localStorage.getItem('authToken');
@@ -1183,6 +1212,12 @@
             const modal = document.getElementById('fullscreenModal');
             modal.style.display = 'none';
             document.getElementById('fullscreenImg').src = '';
+        }
+
+        function setSelectOptions(id, options, defaultValue) {
+            const select = document.getElementById(id);
+            if (!select) return;
+            select.innerHTML = options.map(v => `<option value="${v}"${v==defaultValue?' selected':''}>${v}</option>`).join('');
         }
     </script>
 </body>

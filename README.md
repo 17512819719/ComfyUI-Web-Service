@@ -1,13 +1,13 @@
 # ComfyUI Web Service
 
-# 2025年6月24日小重构说明
+# 2025年6月24日重构说明
 
 本次重构主要内容如下：
 
-- 实现了前后端彻底分离，后端代码、依赖、配置全部归档于 backend 目录，前端管理后台独立于 frontend/admin 目录
+- 实现了前后端彻底分离，后端代码、依赖、配置全部归档于 backend 目录
 - 后端业务代码全部归档于 backend/app 包，import 路径已修正为相对导入，便于维护和扩展
 - Redis 相关依赖已迁移至 backend/，后端依赖统一管理
-- 移除了暂时用不到的 nginx 相关目录，项目结构更清晰
+- 移除了管理后台功能，项目结构更简洁
 - 目录结构和启动方式已在文档中更新，便于新成员理解和使用
 
 <div align="center">
@@ -61,6 +61,9 @@ ComfyUI Web Service 是一个基于 FastAPI 和 Celery 的分布式 AI 服务，
 | 🔄 **异步处理** | Celery 任务队列，支持长时间运行任务 | ✅ |
 | 📊 **进度监控** | 实时任务状态和进度查询 | ✅ |
 | 🌐 **分布式支持** | 多节点 ComfyUI 服务负载均衡 | ✅ |
+| 🔄 **多工作流支持** | 支持自定义/切换多种生成流程 | ✅ |
+| 🩺 **节点健康管理** | 节点状态重置与卡死检测修复 | ✅ |
+| ⏳ **任务预估时间** | 任务状态返回预估剩余时间 | ✅ |
 | 🔐 **身份认证** | JWT Token 认证机制 | ✅ |
 | 📁 **文件管理** | 自动文件上传、下载和清理 | ✅ |
 | 🚀 **服务管理** | 一键启动/停止所有服务 | ✅ |
@@ -211,6 +214,10 @@ image_to_video:
 | `API_HOST` | 0.0.0.0 | API 服务器主机 |
 | `API_PORT` | 8000 | API 服务器端口 |
 
+### 配置优先级说明
+- 参数优先级：工作流特定设置 > 任务类型特定设置 > 全局默认设置 > 硬编码默认值
+- 支持在 `workflow_config.json` 中为每个工作流单独配置参数和描述
+
 ## 📖 API文档
 
 ### 认证
@@ -236,7 +243,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 curl -X POST "http://localhost:8000/api/generate/image" \
      -H "Authorization: Bearer YOUR_TOKEN" \
      -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "prompt=a beautiful landscape&width=512&height=512"
+     -d "prompt=a beautiful landscape&width=512&height=512&workflow_template=标准文生图"
 ```
 
 **请求参数**:
@@ -251,6 +258,7 @@ curl -X POST "http://localhost:8000/api/generate/image" \
 | `cfg_scale` | float | ❌ | 7.0 | CFG 比例 |
 | `seed` | integer | ❌ | -1 | 随机种子 |
 | `batch_size` | integer | ❌ | 1 | 批量大小 |
+| `workflow_template` | string | ❌ | 标准文生图 | 工作流模板名称（可选） |
 
 **响应示例**:
 
@@ -271,7 +279,8 @@ curl -X POST "http://localhost:8000/api/generate/video" \
      -H "Authorization: Bearer YOUR_TOKEN" \
      -F "image=@input.jpg" \
      -F "duration=5.0" \
-     -F "fps=8"
+     -F "fps=8" \
+     -F "workflow_template=万相2.1图生视频"
 ```
 
 **请求参数**:
@@ -282,6 +291,7 @@ curl -X POST "http://localhost:8000/api/generate/video" \
 | `duration` | float | ❌ | 5.0 | 视频时长（秒） |
 | `fps` | integer | ❌ | 8 | 帧率 |
 | `motion_strength` | float | ❌ | 0.8 | 运动强度 |
+| `workflow_template` | string | ❌ | 万相2.1图生视频 | 工作流模板名称（可选） |
 
 ### 任务状态 API
 
@@ -301,9 +311,16 @@ curl -X GET "http://localhost:8000/api/task/status/TASK_ID" \
   "progress": 75,
   "message": "正在生成图像...",
   "result_url": null,
-  "error_message": null
+  "error_message": null,
+  "estimated_time": 120,
+  "created_at": "2024-06-25T12:00:00Z",
+  "updated_at": "2024-06-25T12:01:00Z"
 }
 ```
+
+**状态说明**：
+- `status` 可能为 `queued`、`processing`、`completed`、`failed`、`cancelled`
+- `estimated_time` 为预估剩余时间（秒）
 
 #### 下载结果
 
@@ -481,10 +498,6 @@ ComfyUI-Web-Service/
 │   ├── requirements.txt    # Python依赖
 │   └── ...
 │
-├── frontend/               # 前端代码（Vue项目）
-│   ├── admin/              # 管理后台前端
-│   └── ...
-│
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Client/                 # Web客户端
@@ -555,11 +568,21 @@ pytest
 4. 推送到分支
 5. 创建 Pull Request
 
+### 自定义/扩展工作流模板
+1. 在 `backend/workflows/` 目录添加新的 JSON 工作流文件。
+2. 在 `workflow_config.json` 中补充描述、分类和默认参数。
+3. 可通过 API 或前端界面切换和选择不同工作流。
+
+### 调试与节点管理
+- 使用 `/api/debug/tasks` 查看所有任务状态。
+- 使用 `/api/debug/reset-nodes` 重置所有节点状态并修复卡死节点。
+
 ## 📝 更新日志
 
 ### 🆕 最近更新
 
-- 重构：实现前后端彻底分离，后端代码、依赖、配置全部归档于 backend 目录，前端管理后台独立于 frontend/admin 目录，目录结构和启动方式同步更新，便于维护和扩展。
+- 重构：实现前后端彻底分离，后端代码、依赖、配置全部归档于 backend 目录，目录结构和启动方式同步更新，便于维护和扩展。
+- 移除了管理后台功能，项目结构更简洁。
 - 重构文生图工作流模块，工作流不再硬编码，通过特定 workflow json 文件实现，支持自定义和扩展。
 - 新增 `workflow_manager.py`、`workflow_selector.py`，支持多工作流配置和选择。
 - workflows 目录结构调整，支持多种工作流 json 文件。
@@ -634,39 +657,7 @@ pytest
 
 ## 说明
 - `backend/`：后端服务，包含API、业务逻辑、配置、第三方服务等。
-- `frontend/`：前端项目，推荐使用 Vue3 + Vite。
-
-## 后端管理API（/admin）
-- `/admin/login`：管理员登录，返回JWT token
-- `/admin/workflows`：获取所有工作流列表
-- `/admin/workflow_config?name=xxx`：获取指定工作流参数
-- `/admin/module_config?module=xxx`：获取模块配置
-- `/admin/module_config`（POST）：设置模块配置
-- 需在 `backend/admin_config.yaml` 设置管理员密码
-- 需在 `main.py` 挂载 `admin_api.router`（已自动完成）
-
-## 前端管理后台开发结构
-- 采用 Vue3 + Vite，代码在 `frontend/admin/`
-- 页面结构：
-  - `src/views/Login.vue` 管理员登录页
-  - `src/views/AdminHome.vue` 管理主页面（可扩展为多模块管理）
-  - `src/router/index.js` 路由配置，支持登录保护
-  - `src/axios.js` 全局axios拦截器，自动带token，401跳转登录
-- 推荐开发流程：
-  1. 登录页调用 `/admin/login` 获取token，存localStorage
-  2. 主页面通过token访问管理API，支持工作流/模块配置管理
-  3. 可根据实际需求扩展更多管理功能和UI
-
-## 启动方式
-- 后端：
-  - `start_all.bat`/`stop_all.bat` 支持任意目录自动切换，推荐直接双击或命令行运行
-  - 或手动 `cd backend && python start_services.py`
-- 前端：
-  - `cd frontend/admin && npm install && npm run dev`
-  - 浏览器访问 http://localhost:5173/
-- Docker：
-  - `docker-compose up --build` 支持一键启动后端服务
 
 ---
 
-> 项目结构、启动方式、管理后台API和前端开发流程均已标准化，适合团队协作和持续扩展。
+> 项目结构、启动方式均已标准化，适合团队协作和持续扩展。

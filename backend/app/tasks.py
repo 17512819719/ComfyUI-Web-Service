@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import yaml
 from .workflow_selector import workflow_selector
+from .config_manager import config_manager
 
 # Celery配置
 celery_app = Celery(
@@ -25,14 +26,8 @@ COMFYUI_NODES = [
 # ComfyUI输出目录配置
 COMFYUI_OUTPUT_DIR = r"E:\ComfyUI\ComfyUI\output"  # ComfyUI的真实输出目录
 
-# 加载配置文件
-def load_config():
-    current_dir = os.path.dirname(__file__)
-    config_path = os.path.join(current_dir, '..', 'config.yaml')
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
-
-CONFIG = load_config()
+# 使用配置管理器
+CONFIG = config_manager
 
 def get_available_node():
     """获取可用的ComfyUI节点"""
@@ -152,18 +147,21 @@ def create_image_workflow(request_data: Dict[str, Any]) -> Dict[str, Any]:
         print(f"[DEBUG] 成功从模板加载工作流: {workflow_template}")
         return workflow
     
-    # 如果加载失败，使用默认的硬编码工作流
-    print(f"[DEBUG] 无法加载工作流模板 {workflow_template}，使用默认工作流")
-    cfg = CONFIG.get('text_to_image', {})
+    # 如果加载失败，使用配置管理器获取参数
+    print(f"[DEBUG] 无法加载工作流模板 {workflow_template}，使用配置管理器获取参数")
+    
+    # 使用配置管理器获取参数
+    params = CONFIG.get_image_generation_params(workflow_template, request_data)
     batch_size = request_data.get('batch_size', 1)
+    
     workflow = {
         "3": {
             "inputs": {
                 "seed": request_data.get("seed", 42),
-                "steps": request_data.get("steps", cfg.get("default_steps", 20)),
-                "cfg": request_data.get("cfg_scale", cfg.get("default_cfg_scale", 7.0)),
-                "sampler_name": cfg.get("sampler_name", "euler"),
-                "scheduler": cfg.get("scheduler", "normal"),
+                "steps": params["steps"],
+                "cfg": params["cfg_scale"],
+                "sampler_name": params["sampler_name"],
+                "scheduler": params["scheduler"],
                 "denoise": 1,
                 "model": ["4", 0],
                 "positive": ["6", 0],
@@ -174,14 +172,14 @@ def create_image_workflow(request_data: Dict[str, Any]) -> Dict[str, Any]:
         },
         "4": {
             "inputs": {
-                "ckpt_name": cfg.get("ckpt_name", "realisticVisionV60B1_v51HyperVAE.safetensors")
+                "ckpt_name": params["ckpt_name"]
             },
             "class_type": "CheckpointLoaderSimple"
         },
         "5": {
             "inputs": {
-                "width": request_data.get("width", cfg.get("default_width", 512)),
-                "height": request_data.get("height", cfg.get("default_height", 512)),
+                "width": params["width"],
+                "height": params["height"],
                 "batch_size": batch_size
             },
             "class_type": "EmptyLatentImage"
