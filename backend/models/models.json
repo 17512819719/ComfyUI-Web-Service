@@ -1,1 +1,54 @@
-[]
+{
+  "sd_basic": [
+    {
+      "name": "majicmix7.safetensors",
+      "path": "Realistic\\majicmix7.safetensors",
+      "description": "真实风格模型，适合人像和风景",
+      "type": "checkpoint",
+      "size": "2.1GB",
+      "recommended": true
+    },
+    {
+      "name": "dreamshaper_8.safetensors",
+      "path": "Realistic\\dreamshaper_8.safetensors",
+      "description": "梦幻风格模型，适合艺术创作",
+      "type": "checkpoint",
+      "size": "2.1GB",
+      "recommended": false
+    },
+    {
+      "name": "deliberate_v2.safetensors",
+      "path": "Realistic\\deliberate_v2.safetensors",
+      "description": "精细风格模型，细节丰富",
+      "type": "checkpoint",
+      "size": "2.1GB",
+      "recommended": false
+    }
+  ],
+  "sdxl_basic": [
+    {
+      "name": "juggernautXL_juggXIByRundiffusion_2.safetensors",
+      "path": "SDXL\\juggernautXL_juggXIByRundiffusion_2.safetensors",
+      "description": "SDXL高质量模型，支持高分辨率生成",
+      "type": "checkpoint",
+      "size": "6.6GB",
+      "recommended": true
+    },
+    {
+      "name": "sd_xl_base_1.0.safetensors",
+      "path": "SDXL\\sd_xl_base_1.0.safetensors",
+      "description": "SDXL官方基础模型",
+      "type": "checkpoint",
+      "size": "6.6GB",
+      "recommended": false
+    },
+    {
+      "name": "realvisxlV40_v40Bakedvae.safetensors",
+      "path": "SDXL\\realvisxlV40_v40Bakedvae.safetensors",
+      "description": "真实风格SDXL模型",
+      "type": "checkpoint",
+      "size": "6.6GB",
+      "recommended": false
+    }
+  ]
+}

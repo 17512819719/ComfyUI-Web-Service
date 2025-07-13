@@ -1,73 +1,192 @@
+# 多模态内容生成工作流管理系统配置
+version: "1.0"
+
 # ComfyUI配置
 comfyui:
-  # ComfyUI服务端口
+  host: "127.0.0.1"
   port: 8188
-  # ComfyUI输出目录
   output_dir: "E:\\ComfyUI\\ComfyUI\\output"
+  timeout: 300  # 请求超时时间（秒）
 
-# 全局默认配置
-defaults:
-  # 通用图像生成参数
-  image:
-    default_width: 936
-    default_height: 1664
-    default_steps: 28
-    default_cfg_scale: 3.9
-    default_sampler: "dpmpp_2m"
-    default_scheduler: "sgm uniform"
-    supported_aspect_ratios: ["1:1", "9:16", "16:9"]
-  
-  # 通用视频生成参数
-  video:
-    default_fps: 8
-    default_duration: 5.0
-    default_motion_strength: 0.8
-
-# 模型配置
-models:
-  # 默认模型配置
-  default:
-    checkpoint: "Wanxiang XLSuper RealisticV8.4_V8.4.safetensors"
-    vae: "auto"  # 使用模型自带的VAE
-  
-  # 特定任务模型配置
-  text_to_image:
-    checkpoint: "Wanxiang XLSuper RealisticV8.4_V8.4.safetensors"
-    vae: "auto"
-  
-  image_to_video:
-    checkpoint: "Wanxiang XLSuper RealisticV8.4_V8.4.safetensors"
-    vae: "auto"
-
-# 工作流配置
-workflows:
-  # 默认工作流
-  default_workflow: "标准文生图"
-  
-  # 工作流类别
-  categories:
-    text_to_image: ["标准文生图"]
-    image_to_video: ["万相2.1图生视频"]
-  
-  # 工作流特定配置（覆盖全局默认值）
-  settings:
-    "标准文生图":
-      width: 936
-      height: 1664
-      steps: 28
-      cfg_scale: 3.9
-      sampler: "dpmpp_2m"
-      scheduler: "sgm uniform"
-    
-    "万相2.1图生视频":
-      duration: 5.0
-      fps: 8
-      motion_strength: 0.8
+# Redis配置（任务队列）
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null
 
 # MySQL数据库配置
 mysql:
   host: localhost
   port: 3306
-  user: root                    # 请修改为你的MySQL用户名
-  password: "123456"               # 请修改为你的MySQL密码
-  database: comfyui_admin       # 数据库名称 
+  user: root
+  password: "123456"
+  database: comfyui_admin
+
+# 任务类型配置
+task_types:
+  # 文生图任务
+  text_to_image:
+    enabled: true
+    default_workflow: "sd_basic"
+    max_concurrent_tasks: 4
+    priority: 1
+    workflows:
+      sd_basic:
+        name: "Stable Diffusion Basic"
+        version: "1.0"
+        workflow_file: "D:\\Project\\ComfyUI-Web-Service\\backend\\workflows\\text_to_image\\文生图.json"
+        description: "基础文生图工作流"
+
+        # 参数映射配置 - 精确定义每个参数在工作流中的位置
+        parameter_mapping:
+          # 1. 模型参数 - 节点4的CheckpointLoaderSimple
+          checkpoint:
+            node_id: "4"
+            input_name: "ckpt_name"
+            default_value: "Realistic\\majicmix7.safetensors"
+            data_type: "string"
+            description: "模型文件路径"
+
+          # 2. 图片分辨率和批次 - 节点135的EmptySDXLLatentImage
+          width:
+            node_id: "135"
+            input_name: "width"
+            default_value: 512
+            data_type: "int"
+            description: "图片宽度"
+
+          height:
+            node_id: "135"
+            input_name: "height"
+            default_value: 512
+            data_type: "int"
+            description: "图片高度"
+
+          batch_size:
+            node_id: "135"
+            input_name: "batch_size"
+            default_value: 1
+            data_type: "int"
+            description: "批次数量"
+
+          # 3. 正向提示词 - 节点314的GoogleTranslateTextNode
+          prompt:
+            node_id: "314"
+            input_name: "text"
+            default_value: ""
+            data_type: "string"
+            description: "正向提示词"
+
+          # 4. 反向提示词 - 节点317的AutoNegativePrompt
+          negative_prompt:
+            node_id: "317"
+            input_name: "base_negative"
+            default_value: "text, watermark"
+            data_type: "string"
+            description: "反向提示词"
+
+        # 前端允许提交的参数白名单
+        allowed_frontend_params:
+          - checkpoint
+          - width
+          - height
+          - batch_size
+          - seed
+          - prompt
+          - negative_prompt
+
+      sdxl_basic:
+        name: "SDXL Basic"
+        version: "1.0"
+        workflow_file: "D:\\Project\\ComfyUI-Web-Service\\backend\\workflows\\text_to_image\\SDXL-文生图.json"
+        description: "SDXL基础文生图工作流，支持更高分辨率"
+
+        # 参数映射配置 - 精确定义每个参数在SDXL工作流中的位置
+        parameter_mapping:
+          # 1. 模型参数 - 节点4的CheckpointLoaderSimple
+          checkpoint:
+            node_id: "4"
+            input_name: "ckpt_name"
+            default_value: "SDXL\\juggernautXL_juggXIByRundiffusion_2.safetensors"
+            data_type: "string"
+            description: "SDXL模型文件路径"
+
+          # 2. 图片分辨率和批次 - 节点5的EmptyLatentImage
+          width:
+            node_id: "5"
+            input_name: "width"
+            default_value: 832
+            data_type: "int"
+            description: "图片宽度"
+
+          height:
+            node_id: "5"
+            input_name: "height"
+            default_value: 1480
+            data_type: "int"
+            description: "图片高度"
+
+          batch_size:
+            node_id: "5"
+            input_name: "batch_size"
+            default_value: 1
+            data_type: "int"
+            description: "批次数量"
+
+          # 3. 正向提示词 - 节点79的GoogleTranslateTextNode
+          prompt:
+            node_id: "79"
+            input_name: "text"
+            default_value: ""
+            data_type: "string"
+            description: "正向提示词"
+
+          # 4. 反向提示词 - 节点78的AutoNegativePrompt
+          negative_prompt:
+            node_id: "78"
+            input_name: "base_negative"
+            default_value: "text"
+            data_type: "string"
+            description: "反向提示词"
+
+        # 前端允许提交的参数白名单
+        allowed_frontend_params:
+          - checkpoint
+          - width
+          - height
+          - batch_size
+          - seed
+          - prompt
+          - negative_prompt
+
+
+
+# 参数处理策略配置
+parameter_strategies:
+  merge_strategy: "smart_merge"  # frontend_priority, config_priority, smart_merge, conditional
+  validation_mode: "strict"     # strict, lenient, disabled
+  type_conversion: true         # 自动类型转换
+
+# 任务队列配置
+task_queue:
+  broker_url: "redis://localhost:6379/0"
+  result_backend: "redis://localhost:6379/0"
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content: ["json"]
+  timezone: "UTC"
+  enable_utc: true
+  task_routes:
+    "app.queue.tasks.execute_text_to_image_task": {"queue": "text_to_image"}
+    "app.queue.tasks.execute_generic_workflow_task": {"queue": "celery"}
+  worker_prefetch_multiplier: 1
+  task_acks_late: true
+  worker_max_tasks_per_child: 100
+
+# 系统配置
+system:
+  max_file_size: 50  # MB
+  allowed_image_formats: ["jpg", "jpeg", "png", "webp"]
+  cleanup_interval: 3600  # 清理间隔（秒）
+  task_retention_time: 86400  # 任务保留时间（秒）
