@@ -16,6 +16,11 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+class ConfigValidationError(ConfigurationError):
+    """配置验证错误"""
+    pass
+
+
 class ConfigManager:
     """配置管理器"""
     
@@ -50,32 +55,113 @@ class ConfigManager:
     
     def _validate_config(self):
         """验证配置文件结构"""
-        required_sections = ['task_types', 'comfyui', 'redis']
-        for section in required_sections:
-            if section not in self.config_data:
-                raise ConfigurationError(f"配置文件缺少必需的节: {section}")
+        try:
+            # 基础结构验证
+            required_sections = ['task_types', 'comfyui', 'redis']
+            for section in required_sections:
+                if section not in self.config_data:
+                    raise ConfigValidationError(f"配置文件缺少必需的节: {section}")
+
+            # 详细验证各个配置节
+            self._validate_comfyui_config()
+            self._validate_redis_config()
+            self._validate_task_types_config()
+
+            logger.debug("配置文件验证通过")
+
+        except Exception as e:
+            logger.error(f"配置验证失败: {e}")
+            raise
+
+    def _validate_comfyui_config(self):
+        """验证ComfyUI配置"""
+        comfyui_config = self.config_data.get('comfyui', {})
+
+        # 检查必需字段
+        required_fields = ['host', 'port']
+        for field in required_fields:
+            if field not in comfyui_config:
+                raise ConfigValidationError(f"ComfyUI配置缺少字段: {field}")
+
+        # 验证端口号
+        port = comfyui_config.get('port')
+        if not isinstance(port, int) or port <= 0 or port > 65535:
+            raise ConfigValidationError(f"ComfyUI端口号无效: {port}")
+
+    def _validate_redis_config(self):
+        """验证Redis配置"""
+        redis_config = self.config_data.get('redis', {})
+
+        # 检查必需字段
+        required_fields = ['host', 'port']
+        for field in required_fields:
+            if field not in redis_config:
+                raise ConfigValidationError(f"Redis配置缺少字段: {field}")
+
+        # 验证端口号
+        port = redis_config.get('port')
+        if not isinstance(port, int) or port <= 0 or port > 65535:
+            raise ConfigValidationError(f"Redis端口号无效: {port}")
+
+    def _validate_task_types_config(self):
+        """验证任务类型配置"""
+        task_types = self.config_data.get('task_types', {})
+
+        if not task_types:
+            raise ConfigValidationError("至少需要配置一个任务类型")
+
+        for task_type_name, task_config in task_types.items():
+            if not isinstance(task_config, dict):
+                raise ConfigValidationError(f"任务类型配置格式错误: {task_type_name}")
+
+            # 验证工作流配置
+            workflows = task_config.get('workflows', {})
+            for workflow_name, workflow_config in workflows.items():
+                self._validate_workflow_config(workflow_name, workflow_config)
     
+    def _validate_workflow_config(self, workflow_name: str, workflow_config: dict):
+        """验证单个工作流配置"""
+        required_fields = ['name', 'version', 'workflow_file']
+        for field in required_fields:
+            if field not in workflow_config:
+                raise ConfigValidationError(f"工作流 {workflow_name} 缺少字段: {field}")
+
+        # 验证工作流文件是否存在
+        workflow_file = workflow_config.get('workflow_file')
+        if workflow_file and not os.path.exists(workflow_file):
+            logger.warning(f"工作流文件不存在: {workflow_file} (工作流: {workflow_name})")
+
     def _load_workflow_configs(self):
         """加载工作流配置"""
         task_types = self.config_data.get('task_types', {})
-        
+
         for task_type_name, task_config in task_types.items():
             if not task_config.get('enabled', True):
+                logger.debug(f"跳过已禁用的任务类型: {task_type_name}")
                 continue
-            
+
             try:
                 task_type = TaskType(task_type_name)
             except ValueError:
                 logger.warning(f"未知的任务类型: {task_type_name}")
                 continue
-            
+
             workflows = task_config.get('workflows', {})
             for workflow_name, workflow_data in workflows.items():
                 try:
+                    # 处理工作流文件路径（支持相对路径）
+                    workflow_file = workflow_data['workflow_file']
+                    if not os.path.isabs(workflow_file):
+                        # 相对路径，基于配置文件目录解析
+                        config_dir = os.path.dirname(self.config_path)
+                        workflow_file = os.path.join(config_dir, workflow_file)
+                        workflow_file = os.path.normpath(workflow_file)
+
+                    # 创建工作流配置对象
                     workflow_config = WorkflowConfig(
                         name=workflow_data['name'],
                         version=workflow_data['version'],
-                        workflow_file=workflow_data['workflow_file'],
+                        workflow_file=workflow_file,
                         description=workflow_data.get('description', ''),
                         default_params=workflow_data.get('default_params', {}),
                         param_mapping=workflow_data.get('param_mapping', {}),
@@ -83,14 +169,16 @@ class ConfigManager:
                         model_config=workflow_data.get('model_config', {}),
                         task_type=task_type
                     )
-                    
+
                     self.workflow_configs[workflow_name] = workflow_config
-                    logger.debug(f"加载工作流配置: {workflow_name}")
-                    
+                    logger.debug(f"✅ 加载工作流配置: {workflow_name}")
+
                 except KeyError as e:
-                    logger.error(f"工作流配置缺少必需字段 {e}: {workflow_name}")
+                    logger.error(f"❌ 工作流配置缺少必需字段 {e}: {workflow_name}")
                 except Exception as e:
-                    logger.error(f"加载工作流配置失败 {workflow_name}: {e}")
+                    logger.error(f"❌ 加载工作流配置失败 {workflow_name}: {e}")
+
+        logger.info(f"共加载 {len(self.workflow_configs)} 个工作流配置")
     
     def reload_config(self):
         """重新加载配置文件"""
@@ -210,6 +298,45 @@ class ConfigManager:
         """获取任务类型的优先级"""
         task_config = self.get_task_type_config(task_type)
         return task_config.get('priority', 1)
+
+    def get_nodes_config(self) -> Dict[str, Any]:
+        """获取节点配置"""
+        return self.get_config('nodes')
+
+    def get_static_nodes_config(self) -> List[Dict[str, Any]]:
+        """获取静态节点配置"""
+        nodes_config = self.get_nodes_config()
+        return nodes_config.get('static_nodes', [])
+
+    def get_health_check_config(self) -> Dict[str, Any]:
+        """获取健康检查配置"""
+        nodes_config = self.get_nodes_config()
+        return nodes_config.get('health_check', {
+            'interval': 30,
+            'timeout': 5,
+            'heartbeat_timeout': 60,
+            'retry_attempts': 3
+        })
+
+    def get_load_balancing_config(self) -> Dict[str, Any]:
+        """获取负载均衡配置"""
+        nodes_config = self.get_nodes_config()
+        return nodes_config.get('load_balancing', {
+            'strategy': 'least_loaded',
+            'enable_failover': True,
+            'max_retries': 3
+        })
+
+    def get_discovery_mode(self) -> str:
+        """获取节点发现模式"""
+        nodes_config = self.get_nodes_config()
+        return nodes_config.get('discovery_mode', 'static')
+
+    def is_distributed_mode(self) -> bool:
+        """检查是否为分布式模式"""
+        nodes_config = self.get_nodes_config()
+        static_nodes = nodes_config.get('static_nodes', [])
+        return len(static_nodes) > 0 or self.get_discovery_mode() != 'static'
 
 
 # 全局配置管理器实例

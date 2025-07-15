@@ -100,26 +100,55 @@ def cleanup_celery_tasks():
             password=redis_config.get('password')
         )
 
-        # 定义需要清理的队列
-        queues_to_clean = ['text_to_image', 'celery']
+        # 定义需要清理的队列和模式
+        queue_patterns = [
+            'text_to_image',
+            'celery',
+            '*text_to_image*',
+            '*celery*',
+            'kombu.pidbox.*',
+            'celeryev.*'
+        ]
         cleaned_count = 0
 
-        for queue_name in queues_to_clean:
+        # 清理所有匹配的队列
+        for pattern in queue_patterns:
             try:
-                if r.exists(queue_name):
-                    key_type = r.type(queue_name).decode()
-                    if key_type == 'list':
-                        queue_length = r.llen(queue_name)
-                        if queue_length > 0:
-                            r.delete(queue_name)
-                            cleaned_count += queue_length
-                            print(f"   🗑️  清理队列 '{queue_name}': {queue_length} 个任务")
-                    else:
-                        r.delete(queue_name)
-                        cleaned_count += 1
-                        print(f"   🗑️  删除键 '{queue_name}' (类型: {key_type})")
+                if '*' in pattern:
+                    # 模式匹配
+                    matching_keys = r.keys(pattern)
+                    for key in matching_keys:
+                        try:
+                            key_name = key.decode() if isinstance(key, bytes) else key
+                            key_type = r.type(key).decode()
+                            if key_type == 'list':
+                                queue_length = r.llen(key)
+                                if queue_length > 0:
+                                    r.delete(key)
+                                    cleaned_count += queue_length
+                                    print(f"   🗑️  清理队列 '{key_name}': {queue_length} 个任务")
+                            else:
+                                r.delete(key)
+                                cleaned_count += 1
+                                print(f"   🗑️  删除键 '{key_name}' (类型: {key_type})")
+                        except Exception as e:
+                            print(f"   ⚠️  清理键 '{key}' 时出错: {e}")
+                else:
+                    # 精确匹配
+                    if r.exists(pattern):
+                        key_type = r.type(pattern).decode()
+                        if key_type == 'list':
+                            queue_length = r.llen(pattern)
+                            if queue_length > 0:
+                                r.delete(pattern)
+                                cleaned_count += queue_length
+                                print(f"   🗑️  清理队列 '{pattern}': {queue_length} 个任务")
+                        else:
+                            r.delete(pattern)
+                            cleaned_count += 1
+                            print(f"   🗑️  删除键 '{pattern}' (类型: {key_type})")
             except Exception as e:
-                print(f"   ⚠️  清理队列 '{queue_name}' 时出错: {e}")
+                print(f"   ⚠️  清理模式 '{pattern}' 时出错: {e}")
 
         # 清理活跃任务集合
         try:
@@ -138,13 +167,25 @@ def cleanup_celery_tasks():
         except Exception as e:
             print(f"   ⚠️  清理活跃任务时出错: {e}")
 
-        # 清理未确认任务
+        # 清理未确认任务 - 增强版
         try:
-            unacked_keys = r.keys('unacked*')
-            if unacked_keys:
-                r.delete(*unacked_keys)
-                print(f"   🗑️  清理未确认任务: {len(unacked_keys)} 个键")
-                cleaned_count += len(unacked_keys)
+            # 清理所有可能的未确认任务模式
+            unacked_patterns = [
+                'unacked*',
+                '*unacked*',
+                'celery.unacked*',
+                '*unacknowledged*'
+            ]
+
+            for pattern in unacked_patterns:
+                try:
+                    unacked_keys = r.keys(pattern)
+                    if unacked_keys:
+                        r.delete(*unacked_keys)
+                        print(f"   🗑️  清理未确认任务 '{pattern}': {len(unacked_keys)} 个键")
+                        cleaned_count += len(unacked_keys)
+                except Exception as e:
+                    print(f"   ⚠️  清理未确认任务模式 '{pattern}' 时出错: {e}")
         except Exception as e:
             print(f"   ⚠️  清理未确认任务时出错: {e}")
 
@@ -167,6 +208,62 @@ def cleanup_celery_tasks():
                 cleaned_count += len(kombu_keys)
         except Exception as e:
             print(f"   ⚠️  清理Kombu绑定时出错: {e}")
+
+        # 强制清理所有Celery相关数据 - 彻底清理
+        try:
+            # 获取所有键
+            all_keys = r.keys('*')
+            celery_related_keys = []
+
+            # 过滤出所有Celery相关的键
+            for key in all_keys:
+                key_str = key.decode() if isinstance(key, bytes) else str(key)
+                if any(pattern in key_str.lower() for pattern in [
+                    'celery', 'kombu', 'task', 'worker', 'queue',
+                    'unacked', 'meta', 'result', 'pidbox', 'heartbeat'
+                ]):
+                    celery_related_keys.append(key)
+
+            if celery_related_keys:
+                r.delete(*celery_related_keys)
+                print(f"   🗑️  强制清理所有Celery相关数据: {len(celery_related_keys)} 个键")
+                cleaned_count += len(celery_related_keys)
+
+            # 额外清理特定问题任务
+            problem_task_id = '62a4c4da-1e6d-4666-9c5e-6d349026c2b0'
+            problem_patterns = [
+                f'*{problem_task_id}*',
+                'celery-task-meta-*',
+                '*text_to_image*',
+                '*execute_text_to_image*'
+            ]
+
+            for pattern in problem_patterns:
+                try:
+                    keys = r.keys(pattern)
+                    if keys:
+                        r.delete(*keys)
+                        print(f"   🗑️  清理问题任务模式 '{pattern}': {len(keys)} 个")
+                        cleaned_count += len(keys)
+                except Exception as e:
+                    print(f"   ⚠️  清理问题任务 '{pattern}' 时出错: {e}")
+        except Exception as e:
+            print(f"   ⚠️  强制清理Celery数据时出错: {e}")
+
+        # 清理所有可能的Worker状态
+        try:
+            worker_patterns = ['celery@*', '*worker*', '*heartbeat*']
+            for pattern in worker_patterns:
+                try:
+                    keys = r.keys(pattern)
+                    if keys:
+                        r.delete(*keys)
+                        print(f"   🗑️  清理Worker状态 '{pattern}': {len(keys)} 个")
+                        cleaned_count += len(keys)
+                except Exception as e:
+                    print(f"   ⚠️  清理Worker状态 '{pattern}' 时出错: {e}")
+        except Exception as e:
+            print(f"   ⚠️  清理Worker状态时出错: {e}")
 
         if cleaned_count > 0:
             print(f"✅ Celery任务清理完成，共清理 {cleaned_count} 个项目")
@@ -295,11 +392,14 @@ def main():
     
     # 检查Redis
     if not check_redis_connection():
-        print("\n💡 请先启动Redis服务")
-        return False
+        print("\n⚠️  Redis不可用，将使用内存模式运行")
+        print("💡 内存模式下任务状态不会持久化")
 
-    # 清理残留任务
-    cleanup_celery_tasks()
+    # 清理残留任务（仅在Redis可用时）
+    if check_redis_connection():
+        cleanup_celery_tasks()
+    else:
+        print("\n🧹 跳过任务清理（Redis不可用）")
 
     # 检查Celery
     if not check_celery_imports():

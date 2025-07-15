@@ -3,8 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ComfyUI 分布式服务</title>
+    <title>ComfyUI Studio</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            --secondary-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            --surface-1: rgba(15, 23, 42, 0.8);
+            --surface-2: rgba(30, 41, 59, 0.6);
+            --surface-3: rgba(51, 65, 85, 0.4);
+            --border-1: rgba(148, 163, 184, 0.1);
+            --border-2: rgba(148, 163, 184, 0.2);
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,653 +32,1363 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+        /* 全局滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
 
-        /* 头部样式 */
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        ::-webkit-scrollbar-track {
+            background: var(--surface-1);
         }
 
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
+        ::-webkit-scrollbar-thumb {
+            background: var(--surface-3);
+            border-radius: 4px;
         }
 
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-2);
         }
 
         /* 登录表单样式 */
         .login-form {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 400px;
-            margin: 100px auto;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.1);
-        }
-
-        .login-form h2 {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #667eea;
-        }
-
-        /* 表单样式 */
-        .form-group {
-            margin-bottom: 20px;
-            padding: 15px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.5);
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.05);
-            transition: all 0.3s ease;
-        }
-
-        .form-group:focus-within {
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.1);
-            background: rgba(255, 255, 255, 0.9);
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #555;
-        }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            border-radius: 12px;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            background: rgba(255, 255, 255, 0.8);
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
-        }
-
-        /* 按钮样式 */
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-            transition: all 0.3s ease;
-        }
-
-        .btn-secondary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-            transition: all 0.3s ease;
-        }
-
-        .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: #667eea;
-            border: 2px solid #667eea;
-            transition: all 0.3s ease;
-        }
-
-        .btn-outline:hover {
-            background: #667eea;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
-        }
-
-        /* 主要内容区域 */
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-        }
-
-        .card h3 {
-            color: #667eea;
-            margin-bottom: 20px;
-            font-size: 20px;
-        }
-
-        /* 文件上传样式 */
-        .file-upload {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-        }
-
-        .file-upload input[type="file"] {
-            position: absolute;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-
-        .file-upload-label {
-            display: block;
-            padding: 12px 16px;
-            background: #f8f9fa;
-            border: 1px dashed rgba(102, 126, 234, 0.4);
-            border-radius: 12px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .file-upload-label:hover {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.05);
-        }
-
-        /* 任务列表样式 */
-        .tasks-section {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.1);
-        }
-
-        .task-item {
-            display: flex;
-            flex-direction: column; /* Changed to column for better card layout */
-            justify-content: space-between;
-            align-items: flex-start; /* Align items to start */
-            padding: 24px; /* Increased padding for more breathing room */
-            background: rgba(255, 255, 255, 0.95); /* Brighter background */
-            border: 1px solid rgba(102, 126, 234, 0.15); /* Slightly stronger border */
-            border-radius: 18px; /* Slightly larger border-radius */
-            margin-bottom: 20px; /* Increased margin between tasks */
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.08); /* More subtle initial shadow */
-            transition: all 0.3s ease;
-        }
-
-        .task-item:hover {
-            background: rgba(255, 255, 255, 1); /* Fully opaque on hover */
-            border-color: #667eea; /* Primary color border on hover */
-            transform: translateY(-6px); /* More pronounced lift effect */
-            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.2); /* Stronger hover shadow */
-        }
-
-        .task-info {
-            width: 100%; /* Take full width */
-            margin-bottom: 15px; /* Space between info and media */
-        }
-
-        .task-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px; /* Increased gap between buttons */
-            justify-content: flex-end;
-            width: 100%;
-            margin-top: 8px; /* Adjust if needed */
-        }
-
-        .task-status {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .status-queued { background: #ffeaa7; color: #2d3436; }
-        .status-processing { background: #74b9ff; color: white; }
-        .status-completed { background: #00b894; color: white; }
-        .status-failed { background: #e17055; color: white; }
-
-        /* 进度条样式 */
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e1e5e9;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 10px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s ease;
-        }
-
-        /* 预览模态框样式 */
-        .modal {
-            display: none;
             position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--surface-1);
+            backdrop-filter: blur(24px);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-1);
             z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(5px);
         }
 
-        .modal-content {
-            background: white;
-            margin: 5% auto;
-            padding: 20px;
-            border-radius: 20px;
-            width: 80%;
-            max-width: 600px;
-            position: relative;
+        .login-form input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            position: absolute;
-            right: 20px;
-            top: 15px;
-        }
-
-        .close:hover {
-            color: #000;
-        }
-
-        .preview-media {
-            max-width: 100%;
-            max-height: 400px;
-            border-radius: 12px;
-            margin-top: 15px;
-        }
-
-        /* 响应式设计 */
-        @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
-            
-            .header {
-                flex-direction: column;
-                gap: 15px;
-            }
-
-            .modal-content {
-                width: 95%;
-                margin: 10% auto;
-            }
+        .login-form .btn:hover {
+            transform: translateY(-2px);
         }
 
         /* 隐藏类 */
         .hidden {
+            display: none !important;
+        }
+
+        /* 左侧导航栏 */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 80px;
+            height: 100vh;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+            z-index: 1000;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-logo {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-gradient);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-logo::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-logo:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+        }
+
+        .sidebar-logo:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-logo i {
+            color: white;
+            font-size: 22px;
+            z-index: 1;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex: 1;
+        }
+
+        .nav-item {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-muted);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--surface-2);
+            border-radius: 14px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            transform: scale(0.8);
+        }
+
+        .nav-item:hover::before {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .nav-item:hover, .nav-item.active {
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .nav-item.active::before {
+            opacity: 1;
+            transform: scale(1);
+            background: rgba(99, 102, 241, 0.15);
+        }
+
+        .nav-item i {
+            font-size: 20px;
+            z-index: 1;
+        }
+
+        /* 主内容区域 */
+        .main-content {
+            margin-left: 80px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶部工具栏 */
+        .toolbar {
+            height: 72px;
+            background: var(--surface-1);
+            backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border-1);
+            display: flex;
+            align-items: center;
+            padding: 0 32px;
+            gap: 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .toolbar-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .toolbar-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .btn:hover::before {
+            opacity: 1;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--surface-2);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-2);
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-3);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        /* 内容区域 */
+        .content-area {
+            flex: 1;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* 生成历史网格 */
+        .gallery-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        /* 批次容器 */
+        .batch-container {
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid var(--border-1);
+        }
+
+        .batch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-1);
+        }
+
+        .batch-info {
+            flex: 1;
+        }
+
+        .batch-prompt {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .batch-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .batch-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-completed { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-processing { background: rgba(99, 102, 241, 0.2); color: var(--accent); }
+        .status-queued { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .status-failed { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+
+        /* 批次图片网格 - 4张图片平铺 */
+        .batch-images {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            width: 100%;
+            height: 300px;
+        }
+
+        .batch-images .gallery-item {
+            background: var(--surface-1);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .batch-images .gallery-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .batch-images .gallery-image {
+            height: 240px;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .batch-images .gallery-info {
+            padding: 12px;
+            height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .batch-images .gallery-prompt {
+            font-size: 12px;
+            line-height: 1.3;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .batch-images .gallery-meta {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        /* 批次图片项样式 */
+        .batch-image-item {
+            position: relative;
+            background: var(--surface-1);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .batch-image-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .batch-image-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            cursor: pointer;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .batch-image-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.3) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .batch-image-item:hover .batch-image-overlay {
+            opacity: 1;
+        }
+
+        .batch-image-index {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .batch-image-download {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .batch-image-download:hover {
+            background: var(--primary);
+            transform: scale(1.1);
+        }
+
+        .gallery-item {
+            background: var(--surface-2);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border-1);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .gallery-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(99, 102, 241, 0.2);
+            border-color: var(--border-2);
+        }
+
+        .gallery-item:hover::before {
+            opacity: 1;
+        }
+
+        .gallery-image {
+            width: 100%;
+            height: 240px;
+            background: var(--surface-2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 14px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gallery-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+        .gallery-item:hover .gallery-image img {
+            transform: scale(1.05);
+        }
+
+        /* 图片行样式 */
+        .image-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            height: 200px;
+        }
+
+        .image-item {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            background: var(--surface-2);
+        }
+
+        .image-item:hover {
+            transform: scale(1.02);
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-index {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            z-index: 2;
+        }
+
+        .image-download-btn {
+            position: absolute;
+            bottom: 6px;
+            right: 6px;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: white;
+            padding: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2;
+        }
+
+        .image-item:hover .image-download-btn {
+            opacity: 1;
+        }
+
+        .image-download-btn:hover {
+            background: var(--primary);
+            transform: scale(1.1);
+        }
+
+        /* 图生视频播放按钮 */
+        .image-video-btn {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 32px;
+            height: 32px;
+            background: rgba(0, 0, 0, 0.7);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2;
+        }
+
+        .image-item:hover .image-video-btn,
+        .batch-image-container:hover .image-video-btn {
+            opacity: 1;
+        }
+
+        .image-video-btn:hover {
+            background: rgba(99, 102, 241, 0.9);
+            transform: scale(1.1);
+        }
+
+        .image-video-btn i {
+            font-size: 14px;
+            margin-left: 2px;
+        }
+
+        .gallery-info {
+            padding: 20px;
+        }
+
+        .gallery-prompt {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-weight: 400;
+        }
+
+        .gallery-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .gallery-meta .resolution {
+            background: var(--surface-2);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+        }
+
+        /* 底部输入区域 */
+        .input-panel {
+            background: var(--surface-1);
+            backdrop-filter: blur(32px);
+            border-top: 1px solid var(--border-1);
+            padding: 32px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+            box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.2);
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform: translateY(0);
+        }
+
+        .input-panel.auto-hidden {
+            transform: translateY(calc(100% - 8px));
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-panel.auto-hidden:hover {
+            transform: translateY(calc(100% - 20px));
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .input-panel.fully-hidden {
+            transform: translateY(100%);
+            pointer-events: none;
+        }
+
+        /* 输入面板提示条 */
+        .input-hint {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 8px 8px 0 0;
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .input-panel.auto-hidden .input-hint {
+            opacity: 1;
+        }
+
+        .input-hint::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: var(--primary);
+        }
+
+        /* 输入面板显示/隐藏按钮 */
+        .input-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 200;
+            background: var(--primary);
+            backdrop-filter: blur(20px);
+            border: none;
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+            transform: scale(0.8) translateY(10px);
+        }
+
+        .input-toggle.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1) translateY(0);
+        }
+
+        .input-toggle:hover {
+            transform: scale(1.1) translateY(-2px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+        }
+
+        .input-toggle i {
+            font-size: 18px;
+            transition: transform 0.3s ease;
+        }
+
+        .input-toggle:hover i {
+            transform: translateY(-1px);
+        }
+
+        /* 内容区域底部边距调整 */
+        .content-area {
+            padding-bottom: 200px; /* 为输入面板留出空间 */
+        }
+
+        .input-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .prompt-input-group {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: flex-end;
+        }
+
+        /* 正面提示词单独一行时铺满宽度 */
+        .prompt-input-group:has(.prompt-input:only-child) {
+            display: block;
+        }
+
+        /* 确保正面提示词文本框铺满宽度 */
+        #promptInput {
+            width: 100% !important;
+            box-sizing: border-box;
+        }
+
+        .prompt-input {
+            flex: 1;
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border-1);
+            border-radius: 16px;
+            padding: 16px 20px;
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: inherit;
+            resize: none;
+            min-height: 56px;
+            max-height: 120px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            line-height: 1.5;
+            box-sizing: border-box;
+        }
+
+        .prompt-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            background: var(--surface-3);
+        }
+
+        .prompt-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .generate-btn {
+            padding: 16px 32px;
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 140px;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .generate-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .generate-btn:hover::before {
+            opacity: 1;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 40px rgba(99, 102, 241, 0.5);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 模式选择样式 */
+        .mode-select-container {
+            margin-bottom: 20px;
+        }
+
+        .mode-select-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mode-select-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            min-width: 80px;
+        }
+
+        .mode-select {
+            flex: 1;
+            max-width: 200px;
+            padding: 12px 16px;
+            background: var(--surface-2);
+            border: 1px solid var(--border-1);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 12px center;
+            background-repeat: no-repeat;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        .mode-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            background: var(--surface-3);
+        }
+
+        .mode-select:hover {
+            border-color: var(--accent);
+            background: var(--surface-3);
+        }
+
+        /* 图片上传样式 */
+        .image-upload-container {
+            margin-bottom: 20px;
             display: none;
+        }
+
+        .image-upload-container.active {
+            display: block;
+        }
+
+        .image-upload-area {
+            border: 2px dashed var(--border-1);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            background: var(--surface-2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .image-upload-area:hover {
+            border-color: var(--accent);
+            background: var(--surface-3);
+        }
+
+        .image-upload-area.dragover {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .uploaded-image-preview {
+            display: none;
+            position: relative;
+            max-width: 300px;
+            margin: 0 auto;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .uploaded-image-preview img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .image-preview-overlay {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .preview-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .preview-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.1);
+        }
+
+        #imageUploadInput {
+            display: none;
+        }
+
+        /* 参数控制面板 */
+        .controls-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+            padding: 24px;
+            background: var(--surface-2);
+            border-radius: 20px;
+            border: 1px solid var(--border-1);
+            transition: all 0.3s ease;
+        }
+
+        /* 视频生成模式下隐藏参数控制面板 */
+        .controls-panel.hidden {
+            display: none;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-input, .control-select {
+            background: var(--surface-1);
+            border: 1px solid var(--border-1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .control-input:focus, .control-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+            background: var(--surface-3);
+        }
+
+        .control-select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 12px center;
+            background-repeat: no-repeat;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        /* 状态指示器 */
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+            background: var(--surface-2);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-1);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: var(--error);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
 
         /* 加载动画 */
         .loading {
             display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
+            border-top-color: #fff;
             animation: spin 1s linear infinite;
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
 
-        /* 预览图片样式 */
-        .preview-image {
-            max-width: 100%;
-            max-height: 200px;
-            border-radius: 12px;
-            margin-top: 10px;
-        }
-
-        /* 结果展示 */
-        .result-section {
-            margin-top: 20px;
-            padding: 20px;
-            background: rgba(102, 126, 234, 0.05);
-            border-radius: 12px;
-            border: 1px solid rgba(102, 126, 234, 0.2);
-        }
-
-        /* 美化图片展示区域 */
-        .image-gallery {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
-            justify-content: center;
-            margin: 18px 0 8px 0;
-        }
-        .image-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(102,126,234,0.10);
-            padding: 16px 16px 12px 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: box-shadow 0.2s, transform 0.2s;
-            min-width: 140px;
-            max-width: 180px;
-        }
-        .image-card:hover {
-            box-shadow: 0 8px 32px rgba(102,126,234,0.18);
-            transform: translateY(-4px) scale(1.04);
-        }
-        .gallery-img {
-            max-width: 140px;
-            max-height: 140px;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            background: #f8f9fa;
-            box-shadow: 0 2px 8px rgba(102,126,234,0.08);
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            transition: box-shadow 0.2s, transform 0.2s;
-            cursor: pointer;
-            object-fit: contain;
-        }
-        .gallery-img:hover {
-            box-shadow: 0 6px 24px rgba(102,126,234,0.18);
-            transform: scale(1.08);
-        }
-        .gallery-download {
-            width: 80px;
-            font-size: 13px;
-            padding: 4px 0;
-            margin-top: 2px;
-        }
-        
-
-        
-        /* 参数验证提示 */
-        .validation-error {
-            color: #dc3545;
-            font-size: 12px;
-            margin-top: 4px;
-            display: none;
-            font-weight: bold;
-        }
-        .form-group.error input,
-        .form-group.error select,
-        .form-group.error textarea {
-            border-color: #dc3545;
-            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-        }
-        .form-group.error {
-            border: 1px solid rgba(220, 53, 69, 0.5);
-            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.1);
-        }
-        
-        /* 提示词输入框样式 */
-        .prompt-input {
-            background: rgba(102, 126, 234, 0.05);
-            border: 1px solid rgba(102, 126, 234, 0.3);
-        }
-        .prompt-input:focus {
-            background: rgba(102, 126, 234, 0.1);
-            border-color: #667eea;
-        }
-        @media (max-width: 600px) {
-            .image-gallery {
-                gap: 10px;
-            }
-            .image-card {
-                min-width: 90px;
-                max-width: 120px;
-                padding: 8px 6px 8px 6px;
-            }
-            .gallery-img {
-                max-width: 70px;
-                max-height: 70px;
-            }
-            .gallery-download {
-                width: 60px;
-                font-size: 12px;
-            }
-        }
-
-        /* Global Loading Overlay Styles */
-        .global-loading-overlay {
+        /* 模态框样式 */
+        .modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(5px);
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 2000; /* Ensure it's above other modals */
-            color: white;
-            font-size: 18px;
-            gap: 15px;
-        }
-        .global-loading-overlay.hidden {
-            display: none;
+            z-index: 10000;
+            cursor: pointer;
+            animation: fadeIn 0.3s ease;
         }
 
-        /* Image error state */
-        .image-error {
-        }
-
-        .task-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            margin-bottom: 12px; /* Slightly more space below header */
-        }
-
-        .task-type {
-            font-weight: 600;
-            font-size: 17px; /* Slightly larger font size */
-            color: #333; /* Darker color for emphasis */
-        }
-
-        .task-description {
-            font-size: 14px; /* Slightly larger font size */
-            color: #555; /* Better contrast */
-            margin-bottom: 18px; /* More space below description */
-            width: 100%;
-            line-height: 1.5; /* Improved readability */
-        }
-
-        .task-media-area {
-            width: 100%;
-            margin-bottom: 20px; /* More space below media area */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .task-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px; /* Increased gap between buttons */
-            justify-content: flex-end;
-            width: 100%;
-            margin-top: 8px; /* Adjust if needed */
-        }
-
-        .task-download-btn, .task-preview-btn {
-            padding: 10px 20px; /* Larger padding for better touch targets */
-            font-size: 14px; /* Consistent font size with other buttons */
-            border-radius: 10px; /* Slightly larger border-radius */
-            min-width: 100px; /* Ensure buttons have a minimum width */
+        .modal-content {
+            max-width: 90vw;
+            max-height: 90vh;
             text-align: center;
+            animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-content img {
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-prompt {
+            color: var(--text-secondary);
+            margin-top: 20px;
+            font-size: 15px;
+            opacity: 0.9;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 1024px) {
+            .content-area {
+                padding: 24px;
+            }
+
+            .input-panel {
+                padding: 24px;
+            }
+
+            .controls-panel {
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 16px;
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+            }
+
+            .main-content {
+                margin-left: 70px;
+            }
+
+            .toolbar {
+                padding: 0 20px;
+                height: 64px;
+            }
+
+            .toolbar-title {
+                font-size: 18px;
+            }
+
+            .content-area {
+                padding: 20px;
+            }
+
+            .gallery-grid {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 20px;
+            }
+
+            .input-panel {
+                padding: 20px;
+            }
+
+            .controls-panel {
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 12px;
+                padding: 16px;
+            }
+
+            .prompt-input-group {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .generate-btn {
+                width: 100%;
+                padding: 14px 24px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sidebar {
+                width: 60px;
+            }
+
+            .main-content {
+                margin-left: 60px;
+            }
+
+            .gallery-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls-panel {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <!-- 登录表单 -->
     <div id="loginForm" class="login-form">
-        <h2>登录 ComfyUI 服务</h2>
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="font-size: 48px; margin-bottom: 16px; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                <i class="fas fa-magic"></i>
+            </div>
+            <h2 style="color: var(--text-primary); font-weight: 700; font-size: 24px;">ComfyUI Studio</h2>
+            <p style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">登录以开始创作</p>
+        </div>
         <form id="loginSubmit">
-            <div class="form-group">
-                <label for="username">用户名</label>
-                <input type="text" id="username" name="username" required>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-weight: 500; font-size: 14px;">用户名</label>
+                <input type="text" id="username" name="username" required style="width: 100%; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 12px; color: var(--text-primary); font-size: 14px; transition: all 0.3s ease;">
             </div>
-            <div class="form-group">
-                <label for="password">密码</label>
-                <input type="password" id="password" name="password" required>
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-weight: 500; font-size: 14px;">密码</label>
+                <input type="password" id="password" name="password" required style="width: 100%; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 12px; color: var(--text-primary); font-size: 14px; transition: all 0.3s ease;">
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">登录</button>
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 16px; font-weight: 600; ">登录</button>
         </form>
-        <button id="settingsBtn" class="btn btn-outline" style="width:100%;margin-top:16px;">⚙️ 设置</button>
+        <button id="settingsBtn" class="btn btn-secondary" style="width: 100%; margin-top: 16px; padding: 12px;">
+            <i class="fas fa-cog" ></i>
+            设置服务器
+        </button>
     </div>
 
     <!-- 设置弹窗 -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content" style="max-width:400px;">
-            <span class="close" onclick="closeSettings()">&times;</span>
-            <h3>服务器设置</h3>
-            <div class="form-group">
-                <label for="apiServer">服务器地址</label>
-                <input type="text" id="apiServer" name="apiServer" placeholder="如：http://192.168.1.100:8000" required>
-                <small id="apiServerHelp" style="color:#888;display:block;margin-top:4px;">请输入后端API服务器的地址和端口，通常为 http://本机IP:8000</small>
+    <div id="settingsModal" class="modal-overlay" style="display: none;">
+        <div style="background: var(--surface-1); border-radius: 20px; padding: 32px; max-width: 400px; margin: 0 auto; border: 1px solid var(--border-1); position: relative;">
+            <span onclick="closeSettings()" style="position: absolute; right: 20px; top: 20px; color: var(--text-muted); cursor: pointer; font-size: 24px; transition: color 0.2s ease;">&times;</span>
+            <h3 style="color: var(--text-primary); margin-bottom: 24px; font-size: 20px; font-weight: 600;">服务器设置</h3>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-weight: 500; font-size: 14px;">服务器地址</label>
+                <input type="text" id="apiServer" name="apiServer" placeholder="如：http://192.168.1.100:8000" required style="width: 100%; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 12px; color: var(--text-primary); font-size: 14px;">
+                <small style="color: var(--text-muted); display: block; margin-top: 8px; font-size: 12px;">请输入后端API服务器的地址和端口，通常为 http://本机IP:8000</small>
             </div>
-            <button id="saveSettingsBtn" class="btn btn-primary" style="width:100%;margin-top:8px;">保存设置</button>
+            <button id="saveSettingsBtn" class="btn btn-primary" style="width: 100%; padding: 14px;">保存设置</button>
         </div>
     </div>
 
     <!-- 主界面 -->
-    <div id="mainApp" class="container hidden">
-        <!-- 头部 -->
-        <div class="header">
-            <div class="logo">🎨 ComfyUI 分布式服务</div>
-            <div class="user-info">
-                <span id="welcomeText">欢迎使用</span>
-                <button class="btn btn-danger" onclick="logout()">退出登录</button>
+    <div id="mainApp" class="hidden">
+    <!-- 左侧导航栏 -->
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <i class="fas fa-magic"></i>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-item active" data-tab="generate">
+                <i class="fas fa-image"></i>
+            </div>
+            <div class="nav-item" data-tab="history">
+                <i class="fas fa-history"></i>
+            </div>
+            <div class="nav-item" data-tab="settings">
+                <i class="fas fa-cog"></i>
+            </div>
+        </nav>
+    </div>
+
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <!-- 输入面板切换按钮 -->
+        <div class="input-toggle" id="inputToggle">
+            <i class="fas fa-chevron-up"></i>
+        </div>
+
+        <!-- 顶部工具栏 -->
+        <div class="toolbar" id="toolbar">
+            <div class="toolbar-title">ComfyUI Studio</div>
+            <div class="status-indicator">
+                <div class="status-dot" id="connectionStatus"></div>
+                <span id="statusText">连接中...</span>
+            </div>
+            <div class="toolbar-actions">
+                <button class="btn btn-secondary" onclick="refreshTasks()">
+                    <i class="fas fa-sync"></i>
+                    刷新任务
+                </button>
+                <button class="btn btn-secondary" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    退出登录
+                </button>
             </div>
         </div>
 
-        <!-- 主要功能区域 -->
-        <div class="main-content">
-            <!-- 文生图 -->
-            <div class="card">
-                <h3>📝 文生图</h3>
+        <!-- 内容区域 -->
+        <div class="content-area">
+            <!-- 生成历史网格 -->
+            <div class="gallery-grid" id="galleryGrid">
+                <!-- 历史记录将在这里动态生成 -->
+            </div>
+        </div>
+
+        <!-- 底部输入面板 -->
+        <div class="input-panel" id="inputPanel">
+            <div class="input-container">
+                <!-- 文生图表单 -->
                 <form id="textToImageForm">
-                    <!-- 工作流选择 -->
-                    <div class="form-group">
-                        <label for="workflowSelect">工作流类型</label>
-                        <select id="workflowSelect" name="workflow_name" onchange="updateWorkflowSettings()">
-                            <option value="sd_basic">SD Basic - 基础文生图 (512x512)</option>
-                            <option value="sdxl_basic">SDXL Basic - 高分辨率文生图 (832x1480)</option>
-                        </select>
-                        <small id="workflowHelp" style="color:#888;display:block;margin-top:4px;">选择不同的工作流以获得不同的图像质量和分辨率</small>
-                    </div>
-
-                    <!-- 模型选择 -->
-                    <div class="form-group">
-                        <label for="modelSelect">模型选择</label>
-                        <select id="modelSelect" name="checkpoint">
-                            <!-- 动态更新，根据工作流类型 -->
-                        </select>
-                        <small id="modelHelp" style="color:#888;display:block;margin-top:4px;">根据选择的工作流自动匹配合适的模型</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="prompt">提示词</label>
-                        <textarea id="prompt" name="prompt" rows="3" placeholder="描述你想要生成的图像..." required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="negativePrompt">负面提示词</label>
-                        <textarea id="negativePrompt" name="negative_prompt" rows="2" placeholder="不想要的元素..."></textarea>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
-                        <div class="form-group">
-                            <label for="resolutionPreset">分辨率预设</label>
-                            <select id="resolutionPreset" onchange="updateResolution()">
-                                <option value="custom">自定义</option>
-                                <option value="512x512">512x512 (正方形)</option>
-                                <option value="768x768">768x768 (正方形)</option>
-                                <option value="832x1216">832x1216 (竖屏)</option>
-                                <option value="1024x1024" selected>1024x1024 (正方形)</option>
-                                <option value="1216x832">1216x832 (横屏)</option>
-                                <option value="1344x768">1344x768 (宽屏)</option>
+                    <!-- 参数控制面板 -->
+                    <div class="controls-panel">
+                        <div class="control-group">
+                            <label class="control-label">工作流类型</label>
+                            <select class="control-select" id="workflowSelect" name="workflow_name">
+                                <option value="sd_basic">SD Basic - 基础文生图 (512x512)</option>
+                                <option value="sdxl_basic">SDXL Basic - 高分辨率文生图 (832x1480)</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="width">宽度</label>
-                            <select id="width" name="width">
+                        <div class="control-group">
+                            <label class="control-label">模型选择</label>
+                            <select class="control-select" id="modelSelect" name="checkpoint">
+                                <!-- 动态更新，根据工作流类型 -->
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label">宽度</label>
+                            <select class="control-select" id="width" name="width">
                                 <option value="512">512</option>
                                 <option value="768">768</option>
                                 <option value="832">832</option>
@@ -667,9 +1397,9 @@
                                 <option value="1344">1344</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="height">高度</label>
-                            <select id="height" name="height">
+                        <div class="control-group">
+                            <label class="control-label">高度</label>
+                            <select class="control-select" id="height" name="height">
                                 <option value="512">512</option>
                                 <option value="768">768</option>
                                 <option value="832">832</option>
@@ -678,157 +1408,119 @@
                                 <option value="1480">1480</option>
                             </select>
                         </div>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <div class="form-group">
-                            <label for="batchSize">批次数量</label>
-                            <select id="batchSize" name="batch_size">
-                                <option value="1" selected>1张</option>
-                                <option value="2">2张</option>
-                                <option value="3">3张</option>
-                                <option value="4">4张</option>
-                            </select>
+                        <div class="control-group">
+                            <label class="control-label">随机种子</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="number" class="control-input" id="seed" name="seed" value="-1" placeholder="-1 (随机)" style="flex: 1;">
+                                <button
+                                    type="button"
+                                    onclick="generateRandomSeed()"
+                                    style="
+                                        background: var(--surface-3);
+                                        border: 1px solid var(--border-1);
+                                        border-radius: 8px;
+                                        padding: 8px 12px;
+                                        color: var(--text-secondary);
+                                        cursor: pointer;
+                                        transition: all 0.2s ease;
+                                        font-size: 12px;
+                                    "
+                                    onmouseover="this.style.background='var(--surface-2)'"
+                                    onmouseout="this.style.background='var(--surface-3)'"
+                                    title="生成随机种子"
+                                >
+                                    <i class="fas fa-dice"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="seed">随机种子</label>
-                            <input type="number" id="seed" name="seed" value="-1" placeholder="-1 (随机)">
-                            <small style="color:#888;display:block;margin-top:4px;">-1为随机，固定数值可重现相同结果</small>
-                        </div>
                     </div>
 
-
-                    
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        <span id="textToImageBtn">生成图像</span>
-                    </button>
-                </form>
-            </div>
-
-            <!-- 图生视频 -->
-            <div class="card">
-                <h3>🎬 图生视频</h3>
-                <form id="imageToVideoForm">
-                    <!-- 图片上传 -->
-                    <div class="form-group">
-                        <label for="imageUpload">上传图片</label>
-                        <div class="file-upload">
-                            <input type="file" id="imageUpload" name="image" accept="image/*" required>
-                            <label for="imageUpload" class="file-upload-label">
-                                <span id="uploadText">点击选择图片文件</span>
-                            </label>
-                        </div>
-                        <img id="previewImage" class="preview-image hidden" alt="预览图片">
-                    </div>
-
-                    <!-- 提示词支持 -->
-                    <div class="form-group">
-                        <label for="videoPrompt">视频生成提示词</label>
-                        <textarea id="videoPrompt" name="prompt" class="prompt-input" rows="2" placeholder="描述视频的运动效果和风格..."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="videoNegativePrompt">负面提示词</label>
-                        <textarea id="videoNegativePrompt" name="negative_prompt" class="prompt-input" rows="2" placeholder="不想要的元素..."></textarea>
-                    </div>
-
-                    <!-- 视频参数 -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <div class="form-group">
-                            <label for="videoWidth">视频宽度</label>
-                            <select id="videoWidth" name="width">
-                                <option value="512" selected>512</option>
-                                <option value="832">832</option>
-                                <option value="1024">1024</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="videoHeight">视频高度</label>
-                            <select id="videoHeight" name="height">
-                                <option value="512">512</option>
-                                <option value="768" selected>768</option>
-                                <option value="1024">1024</option>
+                    <!-- 模式选择区域 -->
+                    <div class="mode-select-container">
+                        <div class="mode-select-group">
+                            <label class="mode-select-label">创作类型</label>
+                            <select class="mode-select" id="creationModeSelect">
+                                <option value="text-to-image" selected>📷 图片生成</option>
+                                <option value="image-to-video">🎬 视频生成</option>
                             </select>
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <div class="form-group">
-                            <label for="duration">时长 (秒)</label>
-                            <input type="number" id="duration" name="duration" value="5" min="1" max="10" step="0.5">
+                    <!-- 图片上传区域 (仅在图生视频模式显示) -->
+                    <div class="image-upload-container" id="imageUploadContainer">
+                        <div class="image-upload-area" id="imageUploadArea">
+                            <div class="upload-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="upload-text">点击或拖拽上传图片</div>
+                            <div class="upload-hint">支持 JPG、PNG、WebP 格式，最大 10MB</div>
                         </div>
-                        <div class="form-group">
-                            <label for="fps">帧率</label>
-                            <select id="fps" name="fps">
-                                <option value="8" selected>8 FPS</option>
-                                <option value="12">12 FPS</option>
-                                <option value="16">16 FPS</option>
-                                <option value="24">24 FPS</option>
-                            </select>
+                        <div class="uploaded-image-preview" id="uploadedImagePreview">
+                            <img id="previewImage" src="" alt="预览图片">
+                            <div class="image-preview-overlay">
+                                <button class="preview-btn" onclick="removeUploadedImage()" title="删除图片">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                         </div>
+                        <input type="file" id="imageUploadInput" accept="image/*">
                     </div>
 
-                    <div class="form-group">
-                        <label for="motionStrength">运动强度</label>
-                        <input type="range" id="motionStrength" name="motion_strength" min="0.1" max="1.0" step="0.1" value="0.8">
-                        <span id="motionValue">0.8</span>
+                    <!-- 提示词输入区域 -->
+                    <div class="prompt-input-group">
+                        <div style="width: 100%; position: relative;">
+                            <textarea
+                                class="prompt-input"
+                                id="promptInput"
+                                name="prompt"
+                                placeholder="输入你的创意提示词... (Ctrl+Enter 快速生成)"
+                                rows="3"
+                                required
+                            ></textarea>
+                            <!-- <div style="position: absolute; bottom: 8px; right: 12px; font-size: 11px; color: var(--text-muted); opacity: 0.6;">
+                                Ctrl+Enter
+                            </div> -->
+                        </div>
+                        <!-- <button type="submit" class="generate-btn" id="generateBtn">
+                            <i class="fas fa-magic"></i>
+                            生成
+                        </button> -->
                     </div>
 
-                    <!-- 参数摘要 -->
-                    <div id="videoParamsSummary" style="background:rgba(102,126,234,0.05);border-radius:12px;padding:15px;margin:15px 0;font-size:12px;color:#666;">
-                        <div style="font-weight:500;margin-bottom:8px;color:#667eea;">📋 参数摘要</div>
-                        <div id="videoParamsText">请设置参数以查看摘要</div>
+                    <!-- 负面提示词 -->
+                    <div class="prompt-input-group">
+                        <textarea
+                            class="prompt-input"
+                            id="negativePrompt"
+                            name="negative_prompt"
+                            placeholder="负面提示词 (可选) - 描述你不想在图片中看到的内容"
+                            rows="1"
+                        ></textarea>
+                        <button type="submit" class="generate-btn" id="generateBtn">
+                            <i class="fas fa-magic"></i>
+                            生成
+                        </button>
                     </div>
-
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        <span id="imageToVideoBtn">生成视频</span>
-                    </button>
                 </form>
             </div>
         </div>
-
-        <!-- 任务管理 -->
-        <div class="tasks-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3>📋 任务管理</h3>
-                <button class="btn btn-secondary" onclick="refreshTasks()">刷新任务</button>
-            </div>
-            <div id="tasksList">
-                <p style="text-align: center; color: #666;">暂无任务</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- 预览模态框 -->
-    <div id="previewModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closePreview()">&times;</span>
-            <h3 id="previewTitle">预览</h3>
-            <div id="previewContent"></div>
-        </div>
-    </div>
-
-    <!-- 新增全屏预览模态框 -->
-    <div id="fullscreenModal" class="modal">
-        <div class="modal-content" style="background:rgba(0,0,0,0.95);box-shadow:none;max-width:90vw;max-height:90vh;display:flex;align-items:center;justify-content:center;">
-            <span class="close" style="color:#fff;right:32px;top:24px;z-index:2;" onclick="closeFullscreen()">&times;</span>
-            <img id="fullscreenImg" src="" style="max-width:90vw;max-height:80vh;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.25);background:#222;" />
-        </div>
-    </div>
-
-    <!-- Global Loading Overlay -->
-    <div id="globalLoadingOverlay" class="global-loading-overlay hidden">
-        <div class="loading"></div>
-        <p>处理中，请稍候...</p>
-    </div>
+    </div> <!-- 关闭主界面 -->
 
     <script>
-        // 全局变量
+        // 全局变量 - 与老前端对齐
         let authToken = null;
         let tasks = [];
         let API_BASE = '';
+        let isGenerating = false;
+        let isBatchView = true;
+        let isInputPanelVisible = true;
+        let currentBatchId = null; // 当前生成批次ID
+        let batchCounter = 0; // 批次计数器
+        let currentMode = 'text-to-image'; // 当前创作模式
+        let uploadedImageData = null; // 上传的图片数据
 
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
+        // 初始化
+        document.addEventListener('DOMContentLoaded', async function() {
             // 读取API服务器地址，默认192.168.110.11
             const savedApi = localStorage.getItem('apiServer');
             if (savedApi) {
@@ -837,92 +1529,51 @@
                 API_BASE = 'http://192.168.110.11:8000/api';
                 localStorage.setItem('apiServer', 'http://192.168.110.11:8000');
             }
-            // 设置弹窗输入框初始值
-            const apiInput = document.getElementById('apiServer');
-            if (apiInput) {
-                apiInput.value = localStorage.getItem('apiServer') || 'http://192.168.110.11:8000';
-            }
-
-            // 新增：自动获取后端所有默认参数和选项
-            fetch(`${API_BASE}/config/defaults`).then(r => r.json()).then(data => {
-                // 文生图
-                if (data.default_width !== undefined) document.getElementById('width').value = data.default_width;
-                if (data.default_height !== undefined) document.getElementById('height').value = data.default_height;
-                // 可选项
-                if (data.width_options) setSelectOptions('width', data.width_options, data.default_width);
-                if (data.height_options) setSelectOptions('height', data.height_options, data.default_height);
-
-                // 图生视频
-                if (data.default_duration !== undefined) document.getElementById('duration').value = data.default_duration;
-                if (data.default_fps !== undefined) document.getElementById('fps').value = data.default_fps;
-                if (data.default_motion_strength !== undefined) {
-                    document.getElementById('motionStrength').value = data.default_motion_strength;
-                    document.getElementById('motionValue').textContent = data.default_motion_strength;
-                }
-                if (data.fps_options) setSelectOptions('fps', data.fps_options, data.default_fps);
-                if (data.duration_min !== undefined) document.getElementById('duration').min = data.duration_min;
-                if (data.duration_max !== undefined) document.getElementById('duration').max = data.duration_max;
-                if (data.motion_min !== undefined) document.getElementById('motionStrength').min = data.motion_min;
-                if (data.motion_max !== undefined) document.getElementById('motionStrength').max = data.motion_max;
-                if (data.motion_step !== undefined) document.getElementById('motionStrength').step = data.motion_step;
-                
-                // 视频尺寸选项 (保留，因为它们是前端控制的)
-                if (data.video_width_options) setSelectOptions('videoWidth', data.video_width_options, data.video_default_width);
-                if (data.video_height_options) setSelectOptions('videoHeight', data.video_height_options, data.video_default_height);
-            });
 
             // 检查是否已登录
             authToken = localStorage.getItem('authToken');
             if (authToken) {
                 showMainApp();
-                refreshTasks();
+                await refreshTasks();
+            } else {
+                showLoginForm();
             }
 
-            // 绑定事件监听器
-            bindEventListeners();
-
-            // 绑定验证事件
-            bindValidationEvents();
-
-            // 初始化图生视频参数摘要
-            setTimeout(() => {
-                updateVideoParamsSummary();
-            }, 100);
+            setupEventListeners();
         });
 
-        // 绑定事件监听器
-        function bindEventListeners() {
+        // 设置事件监听器
+        function setupEventListeners() {
             // 登录表单
             document.getElementById('loginSubmit').addEventListener('submit', handleLogin);
-            
+
             // 文生图表单
             document.getElementById('textToImageForm').addEventListener('submit', handleTextToImage);
-            
-            // 图生视频表单
-            document.getElementById('imageToVideoForm').addEventListener('submit', handleImageToVideo);
-            
-            // 图片上传预览
-            document.getElementById('imageUpload').addEventListener('change', handleImagePreview);
-            
-            // 运动强度滑块
-            document.getElementById('motionStrength').addEventListener('input', function(e) {
-                document.getElementById('motionValue').textContent = e.target.value;
-                updateVideoParamsSummary(); // 更新参数摘要
+
+            // 模式切换
+            document.getElementById('creationModeSelect').addEventListener('change', handleModeChange);
+
+            // 图片上传
+            setupImageUpload();
+
+            // 导航切换
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                    this.classList.add('active');
+                });
             });
 
-            // 图生视频参数变化事件
-            const videoParams = ['duration', 'fps', 'videoWidth', 'videoHeight', 'videoPrompt', 'videoNegativePrompt'];
-            videoParams.forEach(paramId => {
-                const element = document.getElementById(paramId);
-                if (element) {
-                    element.addEventListener('input', updateVideoParamsSummary);
-                    element.addEventListener('change', updateVideoParamsSummary);
+            // 回车键生成
+            document.getElementById('promptInput').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    generateImage();
                 }
             });
 
             // 设置按钮和弹窗逻辑
             document.getElementById('settingsBtn').addEventListener('click', function() {
-                document.getElementById('settingsModal').style.display = 'block';
+                document.getElementById('settingsModal').style.display = 'flex';
             });
             document.getElementById('saveSettingsBtn').addEventListener('click', function() {
                 const apiServer = document.getElementById('apiServer').value.trim();
@@ -935,12 +1586,324 @@
                 closeSettings();
                 alert('服务器地址已保存！');
             });
+
+            // 定期检查连接状态
+            setInterval(checkConnection, 30000);
+
+            // 输入面板切换功能
+            setupInputPanelToggle();
+
+            // 初始化模型选择功能
+            setupModelSelection();
+        }
+
+        // 设置输入面板切换功能
+        function setupInputPanelToggle() {
+            const inputPanel = document.getElementById('inputPanel');
+            const inputToggle = document.getElementById('inputToggle');
+            let scrollTimeout;
+            let lastScrollY = window.scrollY;
+            let scrollDirection = 'up';
+            let isUserInteracting = false;
+
+            // 添加提示条
+            const hintDiv = document.createElement('div');
+            hintDiv.className = 'input-hint';
+            hintDiv.textContent = '向上滑动显示输入栏';
+            inputPanel.appendChild(hintDiv);
+
+            // 点击切换按钮
+            inputToggle.addEventListener('click', () => {
+                isUserInteracting = true;
+                toggleInputPanel();
+                setTimeout(() => { isUserInteracting = false; }, 1000);
+            });
+
+            // 智能滚动检测
+            window.addEventListener('scroll', () => {
+                const currentScrollY = window.scrollY;
+                scrollDirection = currentScrollY > lastScrollY ? 'down' : 'up';
+                lastScrollY = currentScrollY;
+
+                if (!isUserInteracting) {
+                    if (scrollDirection === 'down' && isInputPanelVisible) {
+                        autoHideInputPanel();
+                    } else if (scrollDirection === 'up' && !isInputPanelVisible) {
+                        // 向上滚动时，如果接近底部，显示输入面板
+                        if (currentScrollY + window.innerHeight > document.documentElement.scrollHeight - 200) {
+                            showInputPanel();
+                        }
+                    }
+                }
+
+                // 清除之前的定时器
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    if (!isInputPanelVisible && !isUserInteracting) {
+                        showInputToggleButton();
+                    }
+                }, 1500);
+            });
+
+            // 鼠标移动检测
+            document.addEventListener('mousemove', (e) => {
+                if (!isUserInteracting) {
+                    const distanceFromBottom = window.innerHeight - e.clientY;
+
+                    if (distanceFromBottom < 80 && !isInputPanelVisible) {
+                        showInputPanel();
+                    } else if (distanceFromBottom > 150 && isInputPanelVisible && e.clientY < window.innerHeight - 200) {
+                        // 鼠标远离底部时，如果不在输入区域，则自动隐藏
+                        const inputRect = inputPanel.getBoundingClientRect();
+                        if (e.clientY < inputRect.top - 20) {
+                            autoHideInputPanel();
+                        }
+                    }
+                }
+            });
+
+            // 输入面板悬停事件
+            inputPanel.addEventListener('mouseenter', () => {
+                if (inputPanel.classList.contains('auto-hidden')) {
+                    inputPanel.classList.remove('auto-hidden');
+                    isInputPanelVisible = true;
+                }
+            });
+
+            inputPanel.addEventListener('mouseleave', (e) => {
+                if (!isUserInteracting && e.clientY < inputPanel.getBoundingClientRect().top - 20) {
+                    autoHideInputPanel();
+                }
+            });
+
+            // 输入框聚焦时保持显示
+            const inputs = inputPanel.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    isUserInteracting = true;
+                    showInputPanel();
+                });
+
+                input.addEventListener('blur', () => {
+                    setTimeout(() => { isUserInteracting = false; }, 500);
+                });
+            });
+        }
+
+        // 切换输入面板显示/隐藏
+        function toggleInputPanel() {
+            if (isInputPanelVisible) {
+                fullyHideInputPanel();
+            } else {
+                showInputPanel();
+            }
+        }
+
+        // 自动隐藏输入面板（部分隐藏，显示提示）
+        function autoHideInputPanel() {
+            const inputPanel = document.getElementById('inputPanel');
+            const inputToggle = document.getElementById('inputToggle');
+
+            inputPanel.classList.add('auto-hidden');
+            inputPanel.classList.remove('fully-hidden');
+            inputToggle.classList.remove('visible');
+            isInputPanelVisible = false;
+        }
+
+        // 完全隐藏输入面板
+        function fullyHideInputPanel() {
+            const inputPanel = document.getElementById('inputPanel');
+
+            inputPanel.classList.add('fully-hidden');
+            inputPanel.classList.remove('auto-hidden');
+            isInputPanelVisible = false;
+
+            setTimeout(() => {
+                showInputToggleButton();
+            }, 400);
+        }
+
+        // 显示输入面板
+        function showInputPanel() {
+            const inputPanel = document.getElementById('inputPanel');
+            const inputToggle = document.getElementById('inputToggle');
+
+            inputPanel.classList.remove('auto-hidden', 'fully-hidden');
+            inputToggle.classList.remove('visible');
+            isInputPanelVisible = true;
+        }
+
+        // 显示切换按钮
+        function showInputToggleButton() {
+            const inputToggle = document.getElementById('inputToggle');
+            if (!isInputPanelVisible) {
+                inputToggle.classList.add('visible');
+            }
+        }
+
+        // 设置模型选择功能
+        function setupModelSelection() {
+            const workflowSelect = document.getElementById('workflowSelect');
+            const modelSelect = document.getElementById('modelSelect');
+
+            if (!workflowSelect || !modelSelect) {
+                console.error('找不到工作流选择或模型选择元素');
+                return;
+            }
+
+            // 监听工作流类型变化
+            workflowSelect.addEventListener('change', function() {
+                const selectedWorkflow = this.value;
+                console.log('工作流切换到:', selectedWorkflow);
+                loadModelsForWorkflow(selectedWorkflow);
+            });
+
+            // 初始加载默认工作流的模型
+            loadModelsForWorkflow(workflowSelect.value);
+        }
+
+        // 为指定工作流加载模型列表和更新分辨率
+        async function loadModelsForWorkflow(workflowType) {
+            const modelSelect = document.getElementById('modelSelect');
+            const widthInput = document.getElementById('width');
+            const heightInput = document.getElementById('height');
+
+            try {
+                // 显示加载状态
+                modelSelect.innerHTML = '<option value="">加载中...</option>';
+                modelSelect.disabled = true;
+
+                // 获取工作流配置
+                const config = workflowConfigs[workflowType];
+
+                // 更新默认分辨率
+                if (config && config.defaultResolution) {
+                    const [width, height] = config.defaultResolution.split('x');
+                    if (widthInput) widthInput.value = width;
+                    if (heightInput) heightInput.value = height;
+                }
+
+                // 从工作流配置加载模型
+                const models = await loadModelsFromFile(workflowType);
+
+                // 清空并重新填充选项
+                modelSelect.innerHTML = '';
+
+                if (models && models.length > 0) {
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.path;
+                        // 显示完整的描述文本，而不是只显示文件名
+                        option.textContent = `${model.description} ${model.recommended ? '' : ''}`;
+                        option.title = model.description;
+
+                        // 推荐模型默认选中
+                        if (model.recommended) {
+                            option.selected = true;
+                        }
+
+                        modelSelect.appendChild(option);
+                    });
+                } else {
+                    modelSelect.innerHTML = '<option value="">暂无可用模型</option>';
+                }
+
+                modelSelect.disabled = false;
+
+            } catch (error) {
+                console.error('加载模型列表失败:', error);
+                modelSelect.innerHTML = '<option value="">加载失败</option>';
+                modelSelect.disabled = false;
+            }
+        }
+
+        // 工作流配置数据（与老前端保持一致）
+        const workflowConfigs = {
+            'sd_basic': {
+                name: 'SD Basic',
+                description: '基础SD1.5工作流',
+                defaultResolution: '512x512',
+                recommendedResolutions: ['512x512', '768x768'],
+                models: [
+                    { value: 'SD\\majicmixRealistic_v7.safetensors', text: 'MajicMix - 写实 + 二次元混合模型,介于真实与动漫之间' },
+                    { value: 'SD\\realisticVisionV60B1_v51HyperVAE.safetensors', text: '⭐Realistic Vision - 超写实人像模型,擅长女性肖像、写真照⭐' },
+                    { value: 'SD\\onlyrealistic_v30BakedVAE.safetensors', text: 'Onlyrealistic - 写实风,人像的真实质感' }
+                ]
+            },
+            'sdxl_basic': {
+                name: 'SDXL Basic',
+                description: '高分辨率SDXL工作流',
+                defaultResolution: '1024x1024',
+                recommendedResolutions: ['1024x1024', '832x1216', '1216x832', '1344x768'],
+                models: [
+                    { value: 'SDXL\\sd_xl_base_1.0.safetensors', text: 'SDXL Base - 官方 SDXL 基础模型' },
+                    { value: 'SDXL\\juggernautXL_juggXIByRundiffusion_2.safetensors', text: '⭐JuggernautXL - 多风格混合（写实 + 美型 + 半写实 + 插画）⭐' },
+                    { value: 'SDXL\\Wanxiang_XLSuper_RealisticV8.4_V8.4.safetensors', text: 'Wanxiang_Super_Realistic - 基于 SDXL 官方模型微调优化,超写实风格人像与场景生成' },
+                    { value: 'SDXL\\turbovisionxlSuperFastXLBasedOnNew_tvxlV431Bakedvae.safetensors', text: 'SDXL Base - 高速度 + 高写实质量 的混合模型' }
+                ]
+            }
+        };
+
+        // 从工作流配置加载模型数据
+        async function loadModelsFromFile(workflowType) {
+            try {
+                const config = workflowConfigs[workflowType];
+                if (!config || !config.models) {
+                    return [];
+                }
+
+                // 转换为统一格式
+                return config.models.map((model, index) => ({
+                    name: model.value.split('\\').pop(), // 提取文件名
+                    path: model.value,
+                    description: model.text,
+                    type: "checkpoint",
+                    size: workflowType === 'sdxl_basic' ? "6.6GB" : "2.1GB",
+                    recommended: index === 0 // 第一个模型设为推荐
+                }));
+
+            } catch (error) {
+                console.error('获取模型数据失败:', error);
+                return [];
+            }
+        }
+
+        // 更新批次显示逻辑，移除视图切换功能
+        function displayBatchView(tasks, gallery) {
+            const batches = groupTasksByBatch(tasks);
+
+            batches.forEach(batch => {
+                const batchElement = createBatchElement(batch);
+                gallery.appendChild(batchElement);
+            });
+        }
+
+        function displayGridView(tasks, gallery) {
+            // 保持批次视图，不再提供网格视图
+            displayBatchView(tasks, gallery);
+        }
+
+        // 显示登录表单
+        function showLoginForm() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            // 设置弹窗输入框初始值
+            const apiInput = document.getElementById('apiServer');
+            if (apiInput) {
+                apiInput.value = localStorage.getItem('apiServer') || 'http://192.168.110.11:8000';
+            }
+        }
+
+        // 显示主应用
+        function showMainApp() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
         }
 
         // 处理登录
         async function handleLogin(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(e.target);
             const apiServer = document.getElementById('apiServer').value.trim();
             if (!apiServer) {
@@ -949,407 +1912,407 @@
             }
             localStorage.setItem('apiServer', apiServer);
             API_BASE = apiServer.replace(/\/$/, '') + '/api';
-            
+
             const loginBtn = e.target.querySelector('button');
             const originalText = loginBtn.innerHTML;
-            
+
             loginBtn.innerHTML = '<div class="loading"></div> 登录中...';
             loginBtn.disabled = true;
-            showLoadingOverlay(); // Show overlay
-            
+
             try {
                 const response = await fetch(`${API_BASE}/auth/login`, {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     authToken = data.access_token;
                     localStorage.setItem('authToken', authToken);
                     showMainApp();
-                    refreshTasks();
+                    await refreshTasks();
+                    updateConnectionStatus(true);
                 } else {
                     alert('登录失败，请检查用户名和密码');
                 }
             } catch (error) {
                 alert('登录请求失败: ' + error.message);
+                updateConnectionStatus(false);
             } finally {
                 loginBtn.innerHTML = originalText;
                 loginBtn.disabled = false;
-                hideLoadingOverlay(); // Hide overlay
             }
-        }
-
-        // 处理文生图
-        async function handleTextToImage(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const btn = document.getElementById('textToImageBtn');
-            const originalText = btn.textContent;
-            
-            btn.innerHTML = '<div class="loading"></div> 生成中...';
-            e.target.querySelector('button').disabled = true;
-            showLoadingOverlay(); // Show overlay
-            
-            try {
-                const response = await fetch(`${API_BASE}/generate/image`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    addTask({
-                        id: data.task_id,
-                        type: 'text-to-image',
-                        status: 'queued',
-                        progress: 0,
-                        prompt: formData.get('prompt')
-                    });
-                    showSuccess('文生图任务已提交！');
-                } else {
-                    throw new Error('提交失败');
-                }
-            } catch (error) {
-                alert('提交任务失败: ' + error.message);
-            } finally {
-                btn.textContent = originalText;
-                e.target.querySelector('button').disabled = false;
-                hideLoadingOverlay(); // Hide overlay
-            }
-        }
-
-        // 处理图生视频
-        async function handleImageToVideo(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const btn = document.getElementById('imageToVideoBtn');
-            const originalText = btn.textContent;
-            
-            btn.innerHTML = '<div class="loading"></div> 生成中...';
-            e.target.querySelector('button').disabled = true;
-            showLoadingOverlay(); // Show overlay
-            
-            try {
-                // 验证必填参数
-                const imageFile = formData.get('image');
-                if (!imageFile || !imageFile.name) {
-                    throw new Error('请选择图片文件');
-                }
-                
-                // 验证图片文件类型
-                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                if (!allowedTypes.includes(imageFile.type)) {
-                    throw new Error('请选择有效的图片文件（JPG、PNG、WebP）');
-                }
-                
-                // 验证图片文件大小（最大10MB）
-                if (imageFile.size > 10 * 1024 * 1024) {
-                    throw new Error('图片文件大小不能超过10MB');
-                }
-                
-                // 使用实时验证函数
-                if (!validateVideoParams()) {
-                    throw new Error('请检查参数设置，确保所有参数都在有效范围内');
-                }
-                
-                const response = await fetch(`${API_BASE}/generate/video`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    addTask({
-                        id: data.task_id,
-                        type: 'image-to-video',
-                        status: 'queued',
-                        progress: 0,
-                        filename: formData.get('image').name,
-                        prompt: formData.get('prompt') || '无提示词',
-                        estimatedTime: calculateVideoEstimatedTime(formData)
-                    });
-                    showSuccess('图生视频任务已提交！');
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || '提交失败');
-                }
-            } catch (error) {
-                alert('提交任务失败: ' + error.message);
-            } finally {
-                btn.textContent = originalText;
-                e.target.querySelector('button').disabled = false;
-                hideLoadingOverlay(); // Hide overlay
-            }
-        }
-
-        // 处理图片预览
-        function handleImagePreview(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const preview = document.getElementById('previewImage');
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-                document.getElementById('uploadText').textContent = file.name;
-                updateVideoParamsSummary(); // 更新参数摘要
-            }
-        }
-
-        // 处理图生视频
-        async function handleImageToVideo(e) {
-            e.preventDefault();
-
-            const formData = new FormData(e.target);
-            const btn = document.getElementById('imageToVideoBtn');
-            const originalText = btn.textContent;
-
-            btn.innerHTML = '<div class="loading"></div> 生成中...';
-            e.target.querySelector('button').disabled = true;
-            showLoadingOverlay(); // Show overlay
-
-            try {
-                // 验证图片文件
-                const imageFile = formData.get('image');
-                if (!imageFile || imageFile.size === 0) {
-                    throw new Error('请选择图片文件');
-                }
-
-                // 文件大小检查
-                if (imageFile.size > 10 * 1024 * 1024) {
-                    throw new Error('图片文件大小不能超过10MB');
-                }
-
-                // 使用实时验证函数
-                if (!validateVideoParams()) {
-                    throw new Error('请检查参数设置，确保所有参数都在有效范围内');
-                }
-
-                const response = await fetch(`${API_BASE}/generate/video`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: formData
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    addTask({
-                        id: data.task_id,
-                        type: 'image-to-video',
-                        status: 'queued',
-                        progress: 0,
-                        filename: formData.get('image').name,
-                        prompt: formData.get('prompt') || '无提示词',
-                        estimatedTime: calculateVideoEstimatedTime(formData)
-                    });
-                    showSuccess('图生视频任务已提交！');
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || '提交失败');
-                }
-            } catch (error) {
-                alert('提交任务失败: ' + error.message);
-            } finally {
-                btn.textContent = originalText;
-                e.target.querySelector('button').disabled = false;
-                hideLoadingOverlay(); // Hide overlay
-            }
-        }
-
-        // 显示主应用
-        function showMainApp() {
-            document.getElementById('loginForm').classList.add('hidden');
-            document.getElementById('mainApp').classList.remove('hidden');
-            document.getElementById('globalLoadingOverlay').classList.add('hidden'); // Ensure overlay is hidden
         }
 
         // 退出登录
         function logout() {
             authToken = null;
             localStorage.removeItem('authToken');
-            document.getElementById('loginForm').classList.remove('hidden');
-            document.getElementById('mainApp').classList.add('hidden');
-            // 重置表单
-            document.getElementById('loginSubmit').reset();
+            tasks = [];
+            showLoginForm();
+        }
+
+        // 检查连接状态
+        async function checkConnection() {
+            if (!authToken) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/v2/tasks`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                updateConnectionStatus(response.ok);
+            } catch (error) {
+                updateConnectionStatus(false);
+            }
+        }
+
+        // 处理图生视频生成
+        async function handleImageToVideo(e) {
+            // 检查是否已上传图片
+            if (!uploadedImageData) {
+                showError('请先上传一张图片作为视频生成的基础');
+                isGenerating = false;
+                return;
+            }
+
+            isGenerating = true;
+
+            // 为这次生成创建新的批次ID
+            batchCounter++;
+            currentBatchId = `batch_${Date.now()}_${batchCounter}`;
+            console.log('开始新视频生成批次:', currentBatchId);
+
+            const formData = new FormData(e.target);
+            const btn = document.getElementById('generateBtn');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<div class="loading"></div> 生成视频中...';
+            btn.disabled = true;
+
+            try {
+                // 构建图生视频的提交数据
+                const submitData = {
+                    prompt: formData.get('prompt') || '',
+                    negative_prompt: formData.get('negative_prompt') || '',
+                    image: uploadedImageData.relative_path, // 使用相对路径
+                    workflow_name: 'Wan2.1 i2v',
+                    batch_id: currentBatchId,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+
+                console.log('提交图生视频参数:', submitData);
+
+                const response = await fetch(`${API_BASE}/v2/tasks/image-to-video`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(submitData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('图生视频任务提交成功:', data);
+
+                    // 添加任务到本地列表
+                    const task = {
+                        id: data.task_id,
+                        status: 'queued',
+                        prompt: submitData.prompt,
+                        negative_prompt: submitData.negative_prompt,
+                        image: submitData.image,
+                        workflow_name: submitData.workflow_name,
+                        batch_id: currentBatchId,
+                        progress: 0,
+                        message: '图生视频任务已提交',
+                        created_at: submitData.created_at,
+                        updated_at: submitData.updated_at
+                    };
+
+                    tasks.unshift(task);
+                    updateGallery();
+
+                    // 开始轮询任务状态
+                    pollTaskStatus(task.id);
+
+                    showSuccess('图生视频任务已提交！');
+
+                    // 立即显示任务状态并开始轮询
+                    updateGallery();
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '图生视频任务提交失败');
+                }
+            } catch (error) {
+                console.error('图生视频任务提交失败:', error);
+                showError('图生视频任务提交失败: ' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                isGenerating = false;
+            }
+        }
+
+        // 从后端获取任务列表
+        async function loadTasksFromServer() {
+            if (!authToken) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/v2/tasks`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('从服务器加载任务列表:', data);
+
+                    // 转换后端数据格式为前端格式
+                    if (data.tasks && Array.isArray(data.tasks)) {
+                        const serverTasks = data.tasks.map(task => {
+                            const convertedTask = {
+                                id: task.task_id,
+                                status: task.status,
+                                prompt: task.result_data?.prompt || '',
+                                negative_prompt: task.result_data?.negative_prompt || '',
+                                width: task.result_data?.width || 1024,
+                                height: task.result_data?.height || 1024,
+                                workflow_name: task.result_data?.workflow_name || 'sd_basic',
+                                checkpoint: task.result_data?.checkpoint || '',
+                                seed: task.result_data?.seed || -1,
+                                batch_id: task.result_data?.batch_id || `batch_${task.task_id}`,
+                                progress: task.progress || 0,
+                                message: task.message || '',
+                                error_message: task.error_message,
+                                created_at: task.created_at,
+                                updated_at: task.updated_at
+                            };
+
+                            // 处理完成任务的结果URL
+                            if (task.status === 'completed') {
+                                // 优先使用后端返回的 resultUrls
+                                if (task.resultUrls && Array.isArray(task.resultUrls)) {
+                                    convertedTask.resultUrls = task.resultUrls;
+                                    convertedTask.resultUrl = task.resultUrls[0];
+                                    convertedTask.fileCount = task.resultUrls.length;
+                                } else if (task.result_data && task.result_data.files && Array.isArray(task.result_data.files)) {
+                                    // 兜底：如果没有 resultUrls，使用下载接口
+                                    convertedTask.resultFiles = task.result_data.files;
+                                    convertedTask.resultUrls = task.result_data.files.map((filePath, index) =>
+                                        `${API_BASE}/v2/tasks/${task.task_id}/download?index=${index}`
+                                    );
+                                    convertedTask.resultUrl = convertedTask.resultUrls[0];
+                                    convertedTask.fileCount = task.result_data.files.length;
+                                    convertedTask.fileName = task.result_data.files[0]?.split('\\').pop().split('/').pop();
+                                }
+                            }
+
+                            return convertedTask;
+                        });
+
+                        // 合并服务器任务和本地任务，避免重复
+                        const existingTaskIds = new Set(tasks.map(t => t.id));
+                        const newTasks = serverTasks.filter(t => !existingTaskIds.has(t.id));
+
+                        // 将新任务添加到本地任务列表
+                        tasks.unshift(...newTasks);
+
+                        console.log(`从服务器加载了 ${newTasks.length} 个新任务`);
+                        updateGallery();
+                    }
+                } else {
+                    console.error('获取任务列表失败:', response.status);
+                }
+            } catch (error) {
+                console.error('加载任务列表时出错:', error);
+            }
+        }
+
+        // 更新连接状态
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('statusText');
+
+            if (connected) {
+                statusDot.classList.remove('disconnected');
+                statusText.textContent = '已连接';
+            } else {
+                statusDot.classList.add('disconnected');
+                statusText.textContent = '连接断开';
+            }
+        }
+
+        // 处理表单提交 - 支持文生图和图生视频
+        async function handleTextToImage(e) {
+            e.preventDefault();
+
+            if (isGenerating) return;
+
+            // 根据当前模式进行不同的处理
+            if (currentMode === 'image-to-video') {
+                await handleImageToVideo(e);
+            } else {
+                await handleTextToImageGeneration(e);
+            }
+        }
+
+        // 处理文生图生成
+        async function handleTextToImageGeneration(e) {
+            isGenerating = true;
+
+            // 为这次生成创建新的批次ID
+            batchCounter++;
+            currentBatchId = `batch_${Date.now()}_${batchCounter}`;
+            console.log('开始新批次生成:', currentBatchId);
+
+            const formData = new FormData(e.target);
+            const btn = document.getElementById('generateBtn');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<div class="loading"></div> 生成中...';
+            btn.disabled = true;
+
+            try {
+                // 构建JSON格式的提交数据，只包含配置文件白名单允许的参数
+                const submitData = {
+                    prompt: formData.get('prompt') || '',
+                    negative_prompt: formData.get('negative_prompt') || '',
+                    width: parseInt(formData.get('width')) || 512,
+                    height: parseInt(formData.get('height')) || 512,
+                    seed: parseInt(formData.get('seed')) || -1,
+                    workflow_name: formData.get('workflow_name') || 'sd_basic',
+                    checkpoint: formData.get('checkpoint') || ''
+                };
+
+                console.log('提交参数:', submitData);
+
+                const response = await fetch(`${API_BASE}/v2/tasks/text-to-image`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(submitData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    // 添加任务到本地列表，使用与后端一致的数据结构，包含批次ID
+                    addTask({
+                        id: data.task_id,
+                        task_id: data.task_id,
+                        type: 'text-to-image',
+                        status: 'queued',
+                        progress: 0,
+                        prompt: submitData.prompt,
+                        negative_prompt: submitData.negative_prompt,
+                        width: submitData.width,
+                        height: submitData.height,
+                        workflow_name: submitData.workflow_name,
+                        checkpoint: submitData.checkpoint,
+                        batch_id: currentBatchId, // 添加批次ID
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+
+                    showSuccess('文生图任务已提交！');
+
+                    // 立即显示任务状态并开始轮询
+                    updateGallery();
+
+                    // 保持参数不重置，方便连续生成
+                } else {
+                    const errorData = await response.json().catch(() => ({ detail: '未知错误' }));
+                    throw new Error(errorData.detail || '提交失败');
+                }
+            } catch (error) {
+                console.error('提交任务失败:', error);
+                alert('提交任务失败: ' + error.message);
+                updateConnectionStatus(false);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                isGenerating = false;
+            }
+        }
+
+        // 生成图像 - 简化版，直接提交表单
+        function generateImage() {
+            if (isGenerating) return;
+
+            const form = document.getElementById('textToImageForm');
+            if (form) {
+                const event = new Event('submit', { bubbles: true, cancelable: true });
+                form.dispatchEvent(event);
+            }
         }
 
         // 添加任务到列表
         function addTask(task) {
             tasks.unshift(task);
-            renderTasks();
+            updateGallery();
             // 开始轮询任务状态
             pollTaskStatus(task.id);
-        }
-
-        // 渲染任务列表
-        function renderTasks() {
-            const tasksList = document.getElementById('tasksList');
-            
-            if (tasks.length === 0) {
-                tasksList.innerHTML = '<p style="text-align: center; color: #666;">暂无任务</p>';
-                return;
-            }
-            
-            tasksList.innerHTML = tasks.map(task => {
-                let mediaContent = '';
-                let taskDescription = '';
-                let taskButtons = ''; // 新增：用于存放任务操作按钮的HTML
-                
-                if (task.type === 'text-to-image') {
-                    if (task.status === 'completed' && Array.isArray(task.resultUrls) && task.resultUrls.length > 0) {
-                        // 美化批量图片展示
-                        mediaContent = `<div class="image-gallery">
-                            ${task.resultUrls.map((url, idx) => `
-                                <div class="image-card">
-                                    <img src="${url}" alt="生成图片${idx+1}" class="gallery-img" onclick="fullscreenPreview('${url}')" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y0NDMzNiI+PHBhdGggZD0iTTEgMjFoMjJWM0gxWiIvPjxwYXRoIGQ9Ik0xNS41IDguMjVMMTkuMjUgMTJMMTUuNSAxNS43NUwxNi45NTIgMTcuMTYyTDI0IDEwLjEyNUw3LjAyNyAxLjI1NUwxIDE5LjE2Nkw5LjU1IDEwLj৭১MiIvPjwvMlN2Zz4=';this.classList.add('image-error');">
-                                </div>
-                            `).join('')}
-                        </div>`;
-                        taskButtons = `${task.resultUrls.map((url, idx) => `<button class="btn btn-outline task-download-btn" onclick="downloadResult('${task.id}',${idx})">下载图片 ${idx+1}</button>`).join('')}`;
-                    } else if (task.status === 'completed' && task.resultUrl) {
-                        // 单张图片
-                        mediaContent = `<div class="image-gallery"><div class="image-card"><img src="${task.resultUrl}" alt="生成图片" class="gallery-img" onclick="fullscreenPreview('${task.resultUrl}')" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y0NDMzNiI+PHBhdGggZD0iTTEgMjFoMjJWM0gxWiIvPjxwYXRoIGQ9Ik0xNS41IDguMjVMMTkuMjUgMTJMMTUuNSAxNS43NUwxNi45NTIgMTcuMTYyTDI0IDEwLjEyNUw3LjAyNyAxLjI1NUwxIDE5LjE2Nkw5LjU1IDEwLjcxMiIvPjwvMlN2Zz4=';this.classList.add('image-error');"></div></div>`;
-                        taskButtons = `<button class="btn btn-outline task-download-btn" onclick="downloadResult('${task.id}',0)">下载图片</button>`;
-                    } else if (task.status === 'completed') { // Completed but no result URL
-                        mediaContent = `<div style="text-align:center;margin-bottom:8px;"><div style="font-size:24px;margin:24px auto 16px auto;color:#e17055;">⚠️</div><div style="color:#e17055;font-size:13px;">图片获取失败或不存在</div></div>`;
-                    } else if (task.status === 'failed') {
-                        // 任务失败，显示失败信息，不显示加载动画
-                        mediaContent = `<div style="text-align:center;margin-bottom:8px;"><div style="font-size:24px;margin:24px auto 16px auto;color:#e17055;">❌</div><div style="color:#e17055;font-size:13px;">任务失败</div></div>`;
-                    } else {
-                        // 未完成，显示占位动画
-                        mediaContent = `<div style="text-align:center;margin-bottom:8px;"><div class="loading" style="margin:24px auto 16px auto;"></div><div style="color:#aaa;font-size:13px;">图片生成中...</div></div>`;
-                    }
-                    taskDescription = task.prompt || 'ID: ' + task.id.substring(0, 8);
-                } else if (task.type === 'image-to-video') {
-                    if (task.status === 'completed') {
-                        // 视频完成，显示视频预览
-                        mediaContent = `<div class="image-gallery">
-                            <div class="image-card">
-                                <div class="video-thumbnail" style="width:140px;height:140px;background:#f0f2f5;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;position:relative;overflow:hidden;cursor:pointer;" onclick="previewResult('${task.id}', 'image-to-video')">
-                                    <div class="placeholder-background" style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
-                                    <div class="play-icon" style="font-size:48px;color:#fff;position:absolute;z-index:1;background:rgba(0,0,0,0.4);border-radius:50%;width:70px;height:70px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);">▶</div>
-                                    <video preload="metadata" src="${API_BASE}/download/${task.id}" style="max-width:100%;max-height:100%;border-radius:12px;opacity:0;" onerror="this.onerror=null;this.poster='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y0NDMzNiI+PHBhdGggZD0iTTEgMjFoMjJWM0gxWiIvPjxwYXRoIGQ9Ik0xNS41IDguMjVMMTkuMjUgMTJMMTUuNSAxNS43NUwxNi45NTUgMTcuMTYyTDI0IDEwLjIyNUw3LjAyNyAxLjI1NUwxIDE5LjE2Nkw5LjU1IDEwLjcxMiIvPjwvMlN2Zz4=';this.classList.add('image-error');"></video>
-                                </div>
-                            </div>
-                        </div>`;
-                        taskButtons = `
-                            <button class="btn btn-outline task-preview-btn" onclick="previewResult('${task.id}', 'image-to-video')">预览视频</button>
-                            <button class="btn btn-primary task-download-btn" style="margin-top:4px;" onclick="downloadResult('${task.id}')">下载视频</button>
-                        `;
-                    } else if (task.status === 'failed') {
-                        // 任务失败，显示失败信息，不显示加载动画
-                        mediaContent = `<div style="text-align:center;margin-bottom:8px;"><div style="font-size:24px;margin:24px auto 16px auto;color:#e17055;">❌</div><div style="color:#e17055;font-size:13px;">任务失败</div></div>`;
-                    } else {
-                        // 视频生成中
-                        const estimatedTimeText = task.estimatedTime ? `预估时间: ${formatTime(task.estimatedTime)}` : '';
-                        mediaContent = `<div style="text-align:center;margin-bottom:8px;">
-                            <div class="loading" style="margin:24px auto 16px auto;"></div>
-                            <div style="color:#aaa;font-size:13px;">视频生成中...</div>
-                            ${estimatedTimeText ? `<div style="color:#888;font-size:11px;margin-top:4px;">${estimatedTimeText}</div>` : ''}
-                        </div>`;
-                    }
-                    taskDescription = task.prompt ? `提示词: ${task.prompt}` : (task.filename || 'ID: ' + task.id.substring(0, 8));
-                }
-                
-                return `
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-type">${task.type === 'text-to-image' ? '📝 文生图' : '🎬 图生视频'}</div>
-                            <span class="task-status status-${task.status}">
-                                ${getStatusText(task.status)}
-                            </span>
-                        </div>
-                        <div class="task-description">
-                            ${taskDescription}
-                        </div>
-                        <div class="task-media-area">
-                            ${mediaContent}
-                            ${task.status === 'processing' ? `
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${task.progress}%"></div>
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div class="task-actions">
-                            ${taskButtons}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // 获取状态文本
-        function getStatusText(status) {
-            const statusMap = {
-                'queued': '排队中',
-                'processing': '处理中',
-                'completed': '已完成',
-                'failed': '失败'
-            };
-            return statusMap[status] || status;
         }
 
         // 轮询任务状态
         async function pollTaskStatus(taskId) {
             try {
-                const response = await fetch(`${API_BASE}/task/status/${taskId}`, {
+                const response = await fetch(`${API_BASE}/v2/tasks/${taskId}/status`, {
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     const taskIndex = tasks.findIndex(t => t.id === taskId);
                     if (taskIndex !== -1) {
-                        tasks[taskIndex].status = data.status;
-                        tasks[taskIndex].progress = data.progress || 0;
-                        // 新增：如果任务完成且是图片，获取图片URL（支持批量）
-                        if (data.status === 'completed' && tasks[taskIndex].type === 'text-to-image') {
-                            // 支持批量图片
-                            if (Array.isArray(data.result_url)) {
-                                Promise.all(data.result_url.map((_, idx) =>
-                                    fetch(`${API_BASE}/download/${taskId}?index=${idx}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
-                                        .then(r => r.ok ? r.blob() : null)
-                                        .then(blob => blob ? URL.createObjectURL(blob) : null)
-                                )).then(urls => {
-                                    tasks[taskIndex].resultUrls = urls.filter(Boolean);
-                                    renderTasks();
-                                });
-                            } else if (typeof data.result_url === 'string') {
-                                fetch(`${API_BASE}/download/${taskId}`, {
-                                    headers: { 'Authorization': `Bearer ${authToken}` }
-                                })
-                                .then(r => r.ok ? r.blob() : null)
-                                .then(blob => {
-                                    if (blob) {
-                                        tasks[taskIndex].resultUrl = URL.createObjectURL(blob);
-                                        renderTasks();
-                                    }
-                                });
+                        // 更新任务状态，保持与后端数据格式一致
+                        tasks[taskIndex] = {
+                            ...tasks[taskIndex],
+                            status: data.status,
+                            progress: data.progress || 0,
+                            message: data.message || '',
+                            error_message: data.error_message,
+                            updated_at: data.updated_at || new Date().toISOString()
+                        };
+
+                        // 如果任务完成，处理结果URL
+                        if (data.status === 'completed') {
+                            // 优先使用后端返回的 resultUrls
+                            if (data.resultUrls && Array.isArray(data.resultUrls)) {
+                                tasks[taskIndex].resultUrls = data.resultUrls;
+                                tasks[taskIndex].resultUrl = data.resultUrls[0];
+                                tasks[taskIndex].fileCount = data.resultUrls.length;
+                            } else if (data.result_data && data.result_data.files && Array.isArray(data.result_data.files) && data.result_data.files.length > 0) {
+                                // 兜底：如果没有 resultUrls，使用下载接口
+                                tasks[taskIndex].resultFiles = data.result_data.files;
+                                tasks[taskIndex].resultUrls = data.result_data.files.map((file, index) =>
+                                    `${API_BASE}/v2/tasks/${data.task_id}/download?index=${index}`
+                                );
+                                tasks[taskIndex].resultUrl = tasks[taskIndex].resultUrls[0];
+                                tasks[taskIndex].fileName = data.result_data.files[0].split('\\').pop().split('/').pop();
+                                tasks[taskIndex].fileCount = data.result_data.files.length;
                             }
-                        } else {
-                            renderTasks();
                         }
-                        // 如果任务未完成或失败，继续轮询
-                        if (data.status === 'queued' || data.status === 'processing') { // Continue polling only if queued or processing
-                            setTimeout(() => pollTaskStatus(taskId), 3000);
+
+                        updateGallery();
+
+                        // 如果任务未完成，继续轮询（更频繁的轮询以获取实时进度）
+                        if (data.status === 'queued' || data.status === 'processing') {
+                            setTimeout(() => pollTaskStatus(taskId), 1000); // 改为1秒轮询
                         }
                     }
+                } else if (response.status === 404) {
+                    // 任务不存在，停止轮询
+                    console.warn(`任务 ${taskId} 不存在`);
                 }
             } catch (error) {
                 console.error('轮询任务状态失败:', error);
@@ -1357,104 +2320,622 @@
         }
 
         // 刷新任务列表
-        function refreshTasks() {
-            // 这里可以从服务器获取任务列表
-            renderTasks();
+        async function refreshTasks() {
+            await loadTasksFromServer();
         }
 
-        // 预览结果
-        async function previewResult(taskId, type) {
+        // 更新画廊显示
+        function updateGallery() {
+            const gallery = document.getElementById('galleryGrid');
+            gallery.innerHTML = '';
+
+            // 按时间倒序排列任务
+            const sortedTasks = [...tasks].sort((a, b) => new Date(b.created_at || Date.now()) - new Date(a.created_at || Date.now()));
+
+            if (sortedTasks.length === 0) {
+                // 显示空状态
+                const emptyState = document.createElement('div');
+                emptyState.style.cssText = `
+                    text-align: center;
+                    padding: 60px 20px;
+                    color: var(--text-muted);
+                `;
+                emptyState.innerHTML = `
+                    <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">
+                        <i class="fas fa-image"></i>
+                    </div>
+                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary);">
+                        还没有生成任何图片
+                    </h3>
+                    <p style="font-size: 14px; opacity: 0.8;">
+                        在下方输入提示词开始创作吧！
+                    </p>
+                `;
+                gallery.appendChild(emptyState);
+                return;
+            }
+
+            if (isBatchView) {
+                displayBatchView(sortedTasks, gallery);
+            } else {
+                displayGridView(sortedTasks, gallery);
+            }
+        }
+
+        // 批次视图显示
+        function displayBatchView(tasks, gallery) {
+            const batches = groupTasksByBatch(tasks);
+
+            batches.forEach(batch => {
+                const batchElement = createBatchElement(batch);
+                gallery.appendChild(batchElement);
+            });
+        }
+
+        // 网格视图显示
+        function displayGridView(tasks, gallery) {
+            tasks.forEach(task => {
+                const galleryItem = createGalleryItem(task);
+                gallery.appendChild(galleryItem);
+            });
+        }
+
+        // 按批次分组任务（按生成批次ID分组）
+        function groupTasksByBatch(tasks) {
+            const batchMap = new Map();
+
+            // 按批次ID分组
+            tasks.forEach(task => {
+                let batchId = task.batch_id;
+
+                // 如果没有批次ID，为旧任务创建单独的批次
+                if (!batchId) {
+                    batchId = `legacy_${task.task_id}`;
+                }
+
+                if (!batchMap.has(batchId)) {
+                    batchMap.set(batchId, []);
+                }
+                batchMap.get(batchId).push(task);
+            });
+
+            const batches = [];
+
+            // 转换为批次对象
+            batchMap.forEach((batchTasks, batchId) => {
+                // 按时间排序批次内的任务
+                batchTasks.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+
+                const firstTask = batchTasks[0];
+
+                // 确定批次状态
+                let batchStatus = 'completed';
+                if (batchTasks.some(task => task.status === 'processing' || task.status === 'queued')) {
+                    batchStatus = 'processing';
+                } else if (batchTasks.some(task => task.status === 'failed')) {
+                    batchStatus = 'failed';
+                }
+
+                const batch = {
+                    id: batchId,
+                    prompt: firstTask.prompt,
+                    created_at: firstTask.created_at || Date.now(),
+                    tasks: batchTasks,
+                    status: batchStatus,
+                    batchNumber: batchTasks.length // 显示该批次的图片数量
+                };
+
+                batches.push(batch);
+            });
+
+            // 按创建时间倒序排列批次（最新的在前）
+            return batches.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        }
+
+        // 创建批次元素
+        function createBatchElement(batch) {
+            const batchDiv = document.createElement('div');
+            batchDiv.className = 'batch-container';
+
+            const timestamp = new Date(batch.created_at).toLocaleString('zh-CN', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const statusClass = `status-${batch.status}`;
+            const statusText = getStatusText(batch.status);
+
+            // 计算批次进度
+            const totalTasks = batch.tasks.length;
+            const completedTasks = batch.tasks.filter(task => task.status === 'completed').length;
+            const processingTasks = batch.tasks.filter(task => task.status === 'processing').length;
+            const batchProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            // 获取当前处理中任务的进度
+            let currentTaskProgress = 0;
+            if (processingTasks > 0) {
+                const processingTask = batch.tasks.find(task => task.status === 'processing');
+                if (processingTask && processingTask.progress) {
+                    currentTaskProgress = processingTask.progress;
+                }
+            }
+
+            batchDiv.innerHTML = `
+                <div class="batch-header">
+                    <div class="batch-info">
+                        <div class="batch-prompt"># - ${batch.prompt}</div>
+                        <div class="batch-meta">
+                            <span><i class="fas fa-clock"></i> ${timestamp}</span>
+                            <span><i class="fas fa-images"></i> 4 张图片</span>
+                        </div>
+                    </div>
+                    <div class="batch-status ${statusClass}">${statusText}</div>
+                </div>
+                ${batch.status === 'processing' ? `
+                <div class="batch-progress-container" style="
+                    margin: 12px 20px;
+                    padding: 8px 12px;
+                    background: var(--surface-2);
+                    border-radius: 8px;
+                    border: 1px solid var(--border-1);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 12px; color: var(--text-secondary);">
+                            ${processingTasks > 0 ? `正在生成....` : `批次进度`}
+                        </span>
+                        <span style="font-size: 12px; color: var(--text-secondary);">
+                            ${processingTasks > 0 && currentTaskProgress > 0 ? `${currentTaskProgress}%` : `${completedTasks}/${totalTasks}`}
+                        </span>
+                    </div>
+                    <div class="progress-bar" style="
+                        width: 100%;
+                        height: 6px;
+                        background: var(--surface-1);
+                        border-radius: 3px;
+                        overflow: hidden;
+                    ">
+                        <div class="progress-fill" style="
+                            height: 100%;
+                            background: linear-gradient(90deg, #4CAF50, #45a049);
+                            border-radius: 3px;
+                            transition: width 0.3s ease;
+                            width: ${processingTasks > 0 && currentTaskProgress > 0 ? currentTaskProgress : batchProgress}%;
+                        "></div>
+                    </div>
+                </div>
+                ` : ''}
+                <div class="batch-images" id="batch-${batch.id}">
+                    <!-- 批次图片将在这里显示 -->
+                </div>
+            `;
+
+            // 添加批次中的图片 - 直接显示4张图片
+            const batchImages = batchDiv.querySelector(`#batch-${batch.id}`);
+
+            // 取第一个任务（因为现在一个批次就是一个任务生成4张图）
+            const mainTask = batch.tasks[0];
+            if (mainTask && mainTask.status === 'completed' && mainTask.resultUrls) {
+                // 显示4张图片
+                mainTask.resultUrls.slice(0, 4).forEach((url, index) => {
+                    const imageDiv = document.createElement('div');
+                    imageDiv.className = 'batch-image-item';
+                    imageDiv.innerHTML = `
+                        <div class="batch-image-container" onclick="showImageModal('${url}', '${mainTask.prompt || ''}', ${index}, '${mainTask.negative_prompt || ''}')">
+                            <img src="${url}" alt="Generated Image ${index + 1}"
+                                  onload="this.style.opacity=1"
+                                  onerror="handleImageError(this, '${mainTask.id}', ${index})"
+                                  style="opacity: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s ease;">
+                            <button class="image-video-btn" onclick="event.stopPropagation(); switchToVideoMode('${url}', '${mainTask.prompt}')" title="生成视频">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <div class="batch-image-overlay">
+                                <div class="batch-image-index">${index + 1}</div>
+                                <button class="batch-image-download" onclick="event.stopPropagation(); downloadSingleImage('${mainTask.id}', ${index})" title="下载图片 ${index + 1}">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    batchImages.appendChild(imageDiv);
+                });
+
+                // 添加全部下载按钮
+                const downloadAllDiv = document.createElement('div');
+                downloadAllDiv.style.cssText = 'position: absolute; top: 12px; right: 12px; z-index: 10;';
+                downloadAllDiv.innerHTML = `
+                    <button onclick="downloadAllImages('${mainTask.id}')"
+                            style="background: var(--primary); border: none; border-radius: 8px; padding: 8px 16px; color: white; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'"
+                            title="下载全部4张图片">
+                        <i class="fas fa-download"></i> 全部下载
+                    </button>
+                `;
+                batchDiv.style.position = 'relative';
+                batchDiv.appendChild(downloadAllDiv);
+            } else {
+                // 如果还没有完成，显示占位符
+                for (let i = 0; i < 4; i++) {
+                    const placeholderDiv = document.createElement('div');
+                    placeholderDiv.className = 'batch-image-item';
+                    placeholderDiv.innerHTML = `
+                        <div class="batch-image-container" style="background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+                            <div style="text-align: center;">
+                                <i class="fas fa-image" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                                <div style="font-size: 12px;">生成中...</div>
+                            </div>
+                        </div>
+                    `;
+                    batchImages.appendChild(placeholderDiv);
+                }
+            }
+
+            return batchDiv;
+        }
+
+        // 创建画廊项目
+        function createGalleryItem(task) {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+
+            const imageUrl = task.resultUrl || '';
+            const prompt = task.prompt || '';
+            const status = task.status || 'queued';
+            const timestamp = new Date().toLocaleString('zh-CN', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            let imageContent = '';
+            let actionButtons = '';
+
+            if (status === 'completed' && imageUrl) {
+                // 固定4张图片的并排显示
+                const fileCount = task.fileCount || 1;
+                const resultUrls = task.resultUrls || [imageUrl];
+
+                // 创建4张图片的水平布局
+                const imageRow = resultUrls.slice(0, 4).map((url, index) =>
+                    `<div class="image-item" onclick="showImageModal('${url}', '${prompt}', ${index}, '${task.negative_prompt || ''}')">
+                        <img src="${url}" alt="Generated Image ${index + 1}"
+                              onload="this.style.opacity=1"
+                              onerror="handleImageError(this, '${task.id}', ${index})"
+                              style="opacity: 0;">
+                        <button class="image-video-btn" onclick="event.stopPropagation(); switchToVideoMode('${url}', '${prompt}')" title="生成视频">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <div class="image-index">${index + 1}</div>
+                        <button class="image-download-btn" onclick="event.stopPropagation(); downloadSingleImage('${task.id}', ${index})" title="下载图片 ${index + 1}">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>`
+                ).join('');
+
+                imageContent = `<div class="image-row">${imageRow}</div>`;
+
+                actionButtons = `
+                    <div style="position: absolute; top: 12px; right: 12px; display: flex; gap: 8px;">
+                        <button onclick="downloadAllImages('${task.id}')"
+                                style="background: var(--primary); border: 1px solid var(--primary); border-radius: 8px; padding: 8px 16px; color: white; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'"
+                                title="下载全部4张图片">
+                            <i class="fas fa-download"></i> 全部下载
+                        </button>
+                    </div>
+                `;
+            } else if (status === 'failed') {
+                imageContent = '<div style="color: var(--error); font-size: 14px;"><i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>生成失败</div>';
+            } else {
+                imageContent = '<div style="color: var(--text-muted); font-size: 14px;"><i class="fas fa-image" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>生成中...</div>';
+            }
+
+            div.innerHTML = `
+                <div class="gallery-image">
+                    ${imageContent}
+                </div>
+                <div class="gallery-info">
+                    <div class="gallery-prompt">${prompt}</div>
+                    <div class="gallery-meta">
+                        <span class="resolution">${getStatusText(status)}</span>
+                        <span>${timestamp}</span>
+                    </div>
+                </div>
+                ${actionButtons}
+            `;
+
+            // 点击放大图片
+            if (status === 'completed' && imageUrl) {
+                div.addEventListener('click', (e) => {
+                    if (!e.target.closest('button') && !e.target.closest('.image-item')) {
+                        showImageModal(imageUrl, prompt, 0, task.negative_prompt || '');
+                    }
+                });
+            }
+
+            return div;
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'queued': '排队中',
+                'processing': '生成中',
+                'completed': '已完成',
+                'failed': '失败'
+            };
+            return statusMap[status] || status;
+        }
+
+
+
+        // 处理图片加载错误
+        async function handleImageError(imgElement, taskId, imageIndex = 0) {
+            console.log(`图片加载失败，尝试使用认证方式加载: ${taskId}, 图片索引: ${imageIndex}`);
+
             try {
-                const response = await fetch(`${API_BASE}/preview/${taskId}`, {
+                // 先尝试获取任务详情，确保我们有最新的任务信息
+                const taskResponse = await fetch(`${API_BASE}/v2/tasks/${taskId}`, {
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    
-                    const modal = document.getElementById('previewModal');
-                    const title = document.getElementById('previewTitle');
-                    const content = document.getElementById('previewContent');
-                    
-                    title.textContent = type === 'text-to-image' ? '图片预览' : '视频预览';
-                    
-                    if (type === 'text-to-image') {
-                        content.innerHTML = `<img src="${url}" class="preview-media" alt="预览图片" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y0NDMzNiI+PHBhdGggZD0iTTEgMjFoMjJWM0gxWiIvPjxwYXRoIGQ9Ik0xNS41IDguMjVMMTkuMjUgMTJMMTUuNSAxNS43NUwxNi45NTIgMTcuMTYyTDI0IDEwLjEyNUw3LjAyNyAxLjI1NUwxIDE5LjE2Nkw5LjU1IDEwLjcxMiIvPjwvMlN2Zz4=';this.classList.add('image-error');">`;
-                    } else {
-                        content.innerHTML = `<video controls class="preview-media" onerror="this.onerror=null;this.poster='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y0NDMzNiI+PHBhdGggZD0iTTEgMjFoMjJWM0gxWiIvPjxwYXRoIGQ9Ik0xNS41IDguMjVMMTkuMjUgMTJMMTUuNSAxNS43NUwxNi45NTUgMTcuMTYyTDI0IDEwLjIyNUw3LjAyNyAxLjI1NUwxIDE5LjE2Nkw5LjU1IDEwLjcxMiIvPjwvMlN2Zz4=';this.classList.add('image-error');"><source src="${url}" type="video/mp4">您的浏览器不支持视频播放。</video>`;
+
+                if (taskResponse.ok) {
+                    const taskData = await taskResponse.json();
+                    if (taskData.resultUrls && taskData.resultUrls.length > imageIndex) {
+                        // 如果任务有resultUrls字段，直接使用
+                        const imageUrl = taskData.resultUrls[imageIndex];
+                        console.log(`使用任务中的URL: ${imageUrl}`);
+                        imgElement.src = imageUrl;
+                        return;
                     }
-                    
-                    modal.style.display = 'block';
-                } else {
-                    alert('预览失败');
                 }
-            } catch (error) {
-                alert('预览错误: ' + error.message);
-            } finally {
-                // For video, if we're previewing from the card, the URL is already object URL. No need to revoke here.
-                // If coming from downloadResult, it's already revoked.
-            }
-        }
 
-        // 关闭预览
-        function closePreview() {
-            const modal = document.getElementById('previewModal');
-            modal.style.display = 'none';
-            // 清理URL对象
-            const content = document.getElementById('previewContent');
-            const media = content.querySelector('img, video');
-            if (media && media.src.startsWith('blob:')) { // Only revoke if it's a blob URL
-                window.URL.revokeObjectURL(media.src);
-            }
-        }
+                // 如果获取任务详情失败或没有resultUrls，使用下载API
+                const url = imageIndex > 0 ?
+                    `${API_BASE}/v2/tasks/${taskId}/download?index=${imageIndex}` :
+                    `${API_BASE}/v2/tasks/${taskId}/download`;
 
-        // 点击弹窗外部关闭
-        window.onclick = function(event) {
-            const settingsModal = document.getElementById('settingsModal');
-            if (event.target === settingsModal) closeSettings();
-            const previewModal = document.getElementById('previewModal');
-            if (event.target === previewModal) closePreview();
-            const fullscreenModal = document.getElementById('fullscreenModal');
-            if (event.target === fullscreenModal) closeFullscreen();
-        }
-
-        // 下载结果
-        async function downloadResult(taskId, index = null) {
-            try {
-                let url = `${API_BASE}/download/${taskId}`;
-                if (index !== null) {
-                    url += `?index=${index}`;
-                }
+                console.log(`使用下载API: ${url}`);
                 const response = await fetch(url, {
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const imageUrl = URL.createObjectURL(blob);
+                    imgElement.src = imageUrl;
+                    imgElement.onload = function() {
+                        this.style.opacity = 1;
+                        // 清理blob URL
+                        setTimeout(() => URL.revokeObjectURL(imageUrl), 5000);
+                    };
+                } else {
+                    console.error(`认证图片加载也失败: ${response.status}, 图片索引: ${imageIndex}`);
+                    imgElement.style.opacity = 1;
+                    imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                }
+            } catch (error) {
+                console.error('图片加载错误:', error);
+                imgElement.style.opacity = 1;
+                imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+            }
+        }
+
+        // 显示图片模态框（支持多张图片）
+        function showImageModal(imageUrl, prompt, imageIndex = 0, negativePrompt = '') {
+            try {
+                const modal = document.createElement('div');
+                modal.className = 'image-modal';
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.9);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                    cursor: pointer;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                `;
+
+                const closeModal = () => {
+                    modal.style.opacity = '0';
+                    setTimeout(() => {
+                        if (document.body.contains(modal)) {
+                            document.body.removeChild(modal);
+                        }
+                        document.removeEventListener('keydown', handleEsc);
+                    }, 300);
+                };
+
+                const handleEsc = (e) => {
+                    if (e.key === 'Escape') {
+                        closeModal();
+                    }
+                };
+
+                modal.onclick = closeModal;
+                document.addEventListener('keydown', handleEsc);
+
+                modal.innerHTML = `
+                    <div style="max-width: 90vw; max-height: 90vh; position: relative; display: flex; flex-direction: column; align-items: center;" onclick="event.stopPropagation()">
+                        <img src="${imageUrl}"
+                             alt="Generated Image ${imageIndex + 1}"
+                             style="max-width: 100%; max-height: calc(90vh - 60px); object-fit: contain; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);"
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WKoOi9veWksei0pTwvdGV4dD48L3N2Zz4='">
+                        <div style="margin-top: 16px; color: white; text-align: center; font-size: 14px; max-width: 600px; line-height: 1.4;">
+                            <div style="font-weight: 500; margin-bottom: 8px;">图片 ${imageIndex + 1}</div>
+                            ${prompt ? `<div style="color: rgba(255,255,255,0.9); margin-bottom: 6px;"><strong>正向提示词:</strong> ${prompt}</div>` : ''}
+                            ${negativePrompt ? `<div style="color: rgba(255,255,255,0.7);"><strong>反向提示词:</strong> ${negativePrompt}</div>` : ''}
+                            ${!prompt && !negativePrompt ? '<div style="color: rgba(255,255,255,0.8);">无描述</div>' : ''}
+                        </div>
+                        <button onclick="closeModal()" style="position: absolute; top: -40px; right: 0; background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;">
+                            ×
+                        </button>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+
+                // 触发动画
+                setTimeout(() => {
+                    modal.style.opacity = '1';
+                }, 10);
+
+            } catch (error) {
+                console.error('显示图片模态框时出错:', error);
+                alert('无法显示图片');
+            }
+        }
+
+        // 下载单张图片
+        async function downloadSingleImage(taskId, imageIndex) {
+            try {
+                const url = imageIndex > 0 ?
+                    `${API_BASE}/v2/tasks/${taskId}/download?index=${imageIndex}` :
+                    `${API_BASE}/v2/tasks/${taskId}/download`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
                 if (response.ok) {
                     const blob = await response.blob();
                     const downloadUrl = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = downloadUrl;
-                    // 根据任务类型确定下载文件名
-                    const task = tasks.find(t => t.id === taskId);
-                    let filename = `result_${taskId}`;
-                    if (task) {
-                        if (task.type === 'text-to-image') filename += (index !== null ? `_${index + 1}.png` : '.png');
-                        else if (task.type === 'image-to-video') filename += '.mp4';
-                    }
-                    a.download = filename;
+                    a.download = `image_${taskId}_${imageIndex + 1}.png`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(downloadUrl);
+                    showSuccess(`图片 ${imageIndex + 1} 下载完成`);
                 } else {
-                    alert('下载失败');
+                    alert(`下载图片 ${imageIndex + 1} 失败`);
                 }
             } catch (error) {
+                console.error('下载错误:', error);
+                alert(`下载图片 ${imageIndex + 1} 错误: ${error.message}`);
+            }
+        }
+
+        // 下载所有图片
+        async function downloadAllImages(taskId) {
+            try {
+                const task = tasks.find(t => t.id === taskId);
+                const fileCount = task?.fileCount || 4; // 固定4张
+
+                for (let i = 0; i < fileCount; i++) {
+                    const url = i > 0 ?
+                        `${API_BASE}/v2/tasks/${taskId}/download?index=${i}` :
+                        `${API_BASE}/v2/tasks/${taskId}/download`;
+
+                    const response = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.download = `image_${taskId}_${i + 1}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(downloadUrl);
+
+                        // 添加延迟避免浏览器阻止多个下载
+                        if (i < fileCount - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                }
+                showSuccess(`已下载全部 ${fileCount} 张图片`);
+            } catch (error) {
+                console.error('批量下载错误:', error);
+                alert('批量下载错误: ' + error.message);
+            }
+        }
+
+        // 下载任务结果（保持兼容性）
+        async function downloadTask(taskId) {
+            try {
+                const task = tasks.find(t => t.id === taskId);
+                const fileCount = task?.fileCount || 1;
+
+                if (fileCount > 1) {
+                    // 多张图片：依次下载所有图片
+                    for (let i = 0; i < fileCount; i++) {
+                        const url = i > 0 ?
+                            `${API_BASE}/v2/tasks/${taskId}/download?index=${i}` :
+                            `${API_BASE}/v2/tasks/${taskId}/download`;
+
+                        const response = await fetch(url, {
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`
+                            }
+                        });
+
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const downloadUrl = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = downloadUrl;
+                            a.download = `result_${taskId}_${i + 1}.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(downloadUrl);
+
+                            // 添加延迟避免浏览器阻止多个下载
+                            if (i < fileCount - 1) {
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                        }
+                    }
+                    showSuccess(`已下载 ${fileCount} 张图片`);
+                } else {
+                    // 单张图片：原有下载方式
+                    const response = await fetch(`${API_BASE}/v2/tasks/${taskId}/download`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.download = `result_${taskId}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(downloadUrl);
+                        showSuccess('图片下载完成');
+                    } else {
+                        alert('下载失败');
+                    }
+                }
+            } catch (error) {
+                console.error('下载错误:', error);
                 alert('下载错误: ' + error.message);
             }
         }
@@ -1467,18 +2948,21 @@
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: #00b894;
+                background: var(--success);
                 color: white;
                 padding: 15px 20px;
                 border-radius: 12px;
                 z-index: 1000;
                 animation: slideIn 0.3s ease;
+                box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
             `;
             toast.textContent = message;
             document.body.appendChild(toast);
-            
+
             setTimeout(() => {
-                document.body.removeChild(toast);
+                if (document.body.contains(toast)) {
+                    document.body.removeChild(toast);
+                }
             }, 3000);
         }
 
@@ -1487,473 +2971,237 @@
             document.getElementById('settingsModal').style.display = 'none';
         }
 
-        // 全屏预览图片
-        function fullscreenPreview(url) {
-            const modal = document.getElementById('fullscreenModal');
-            const img = document.getElementById('fullscreenImg');
-            img.src = url; // Fullscreen image display from blob URL
-            img.style.filter = 'none'; // 确保没有灰度滤镜
-            img.classList.remove('image-error'); // 移除错误类
-            img.onerror = function() {
-                this.onerror = null;
-                this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y0NDMzNiI+PHBhdGggZD0iTTEgMjFoMjJWM0gxWiIvPjxwYXRoIGQ9Ik0xNS41IDguMjVMMTkuMjUgMTJMMTUuNSAxNS43NUwxNi45NTIgMTcuMTYyTDI0IDEwLjEyNUw3LjAyNyAxLjI1NUwxIDE5LjE2Nkw5LjU1IDEwLjcxMiIvPjwvMlN2Zz4=';
-                this.classList.add('image-error');
-            };
-            modal.style.display = 'block';
-        }
-        function closeFullscreen() {
-            const modal = document.getElementById('fullscreenModal');
-            modal.style.display = 'none';
-            document.getElementById('fullscreenImg').src = '';
+        // 随机种子生成
+        function generateRandomSeed() {
+            document.getElementById('seed').value = Math.floor(Math.random() * 1000000);
         }
 
-        function setSelectOptions(id, options, defaultValue) {
-            const select = document.getElementById(id);
-            if (!select) return;
-            select.innerHTML = options.map(v => `<option value="${v}"${v==defaultValue?' selected':''}>${v}</option>`).join('');
-        }
-        
-        // 显示全局加载动画
-        function showLoadingOverlay() {
-            document.getElementById('globalLoadingOverlay').classList.remove('hidden');
-        }
-
-        // 隐藏全局加载动画
-        function hideLoadingOverlay() {
-            document.getElementById('globalLoadingOverlay').classList.add('hidden');
-        }
-
-        // 实时参数验证
-        function validateVideoParams() {
-            const duration = parseFloat(document.getElementById('duration').value);
-            const fps = parseInt(document.getElementById('fps').value);
-            const motionStrength = parseFloat(document.getElementById('motionStrength').value);
-            const width = parseInt(document.getElementById('videoWidth').value);
-            const height = parseInt(document.getElementById('videoHeight').value);
-            
-            let isValid = true;
-            
-            // 清除所有错误状态
-            document.querySelectorAll('.form-group').forEach(group => group.classList.remove('error'));
-            
-            // 验证时长
-            if (duration < 1 || duration > 10) {
-                markFieldError('duration', '时长必须在1-10秒之间');
-                isValid = false;
-            }
-            
-            // 验证帧率
-            if (fps < 1 || fps > 60) {
-                markFieldError('fps', '帧率必须在1-60之间');
-                isValid = false;
-            }
-            
-            // 验证运动强度
-            if (motionStrength < 0.1 || motionStrength > 1.0) {
-                markFieldError('motionStrength', '运动强度必须在0.1-1.0之间');
-                isValid = false;
-            }
-            
-            // 验证宽度
-            if (width < 64 || width > 1024 || width % 64 !== 0) {
-                markFieldError('videoWidth', '宽度必须是64的倍数，范围64-1024');
-                isValid = false;
-            }
-            
-            // 验证高度
-            if (height < 64 || height > 1024 || height % 64 !== 0) {
-                markFieldError('videoHeight', '高度必须是64的倍数，范围64-1024');
-                isValid = false;
-            }
-            
-            return isValid;
-        }
-        
-        // 标记字段错误
-        function markFieldError(fieldId, message) {
-            const field = document.getElementById(fieldId);
-            if (!field) return;
-            
-            const formGroup = field.closest('.form-group');
-            formGroup.classList.add('error');
-            
-            // 移除现有的错误消息
-            const existingError = formGroup.querySelector('.validation-error');
-            if (existingError) {
-                existingError.remove();
-            }
-            
-            // 添加新的错误消息
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'validation-error';
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            formGroup.appendChild(errorDiv);
-        }
-        
-        // 清除字段错误
-        function clearFieldError(fieldId) {
-            const field = document.getElementById(fieldId);
-            if (!field) return;
-            
-            const formGroup = field.closest('.form-group');
-            formGroup.classList.remove('error');
-            
-            const errorDiv = formGroup.querySelector('.validation-error');
-            if (errorDiv) {
-                errorDiv.remove();
-            }
-        }
-        
-        // 绑定实时验证事件
-        function bindValidationEvents() {
-            const videoFields = ['duration', 'fps', 'motionStrength', 'videoWidth', 'videoHeight'];
-            const allVideoFields = [...videoFields, 'videoPrompt'];
-            
-            allVideoFields.forEach(fieldId => {
-                const field = document.getElementById(fieldId);
-                if (field) {
-                    field.addEventListener('input', () => {
-                        clearFieldError(fieldId);
-                        updateVideoParamsSummary();
-                    });
-                    field.addEventListener('change', () => {
-                        validateVideoParams();
-                        updateVideoParamsSummary();
-                    });
-                }
+        // 复制提示词
+        function copyPrompt(prompt) {
+            navigator.clipboard.writeText(prompt).then(() => {
+                // 可以添加提示信息
             });
-            
-            // 初始化参数摘要
-            updateVideoParamsSummary();
         }
-        
-        // 计算视频生成预估时间
-        function calculateVideoEstimatedTime(formData) {
-            const duration = parseFloat(formData.get('duration'));
-            const fps = parseInt(formData.get('fps'));
-            
-            // 基础时间（秒）
-            let baseTime = 30;
-            
-            // 根据时长调整
-            baseTime += duration * 10;
-            
-            // 根据帧率调整
-            baseTime += fps * 2;
-            
-            return Math.round(baseTime);
-        }
-        
-        // 格式化时间显示
-        function formatTime(seconds) {
-            if (seconds < 60) {
-                return `${seconds}秒`;
-            } else if (seconds < 3600) {
-                const minutes = Math.floor(seconds / 60);
-                const remainingSeconds = seconds % 60;
-                return `${minutes}分${remainingSeconds}秒`;
+
+        // 处理模式切换
+        function handleModeChange() {
+            const modeSelect = document.getElementById('creationModeSelect');
+            const newMode = modeSelect.value;
+            const imageUploadContainer = document.getElementById('imageUploadContainer');
+            const controlsPanel = document.querySelector('.controls-panel');
+            const generateBtn = document.getElementById('generateBtn');
+
+            currentMode = newMode;
+
+            if (newMode === 'image-to-video') {
+                // 切换到图生视频模式
+                imageUploadContainer.classList.add('active');
+                controlsPanel.classList.add('hidden'); // 隐藏参数控制面板
+                generateBtn.innerHTML = '<i class="fas fa-video"></i> 生成视频';
+
+                // 更新提示词占位符
+                const promptInput = document.getElementById('promptInput');
+                promptInput.placeholder = '描述你希望视频中发生的动作或场景变化... (Ctrl+Enter 快速生成)';
             } else {
-                const hours = Math.floor(seconds / 3600);
-                const minutes = Math.floor((seconds % 3600) / 60);
-                return `${hours}小时${minutes}分`;
+                // 切换到文生图模式
+                imageUploadContainer.classList.remove('active');
+                controlsPanel.classList.remove('hidden'); // 显示参数控制面板
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> 生成图片';
+
+                // 恢复提示词占位符
+                const promptInput = document.getElementById('promptInput');
+                promptInput.placeholder = '输入你的创意提示词... (Ctrl+Enter 快速生成)';
             }
         }
-        
-        // 更新视频参数摘要
-        function updateVideoParamsSummary() {
-            const summaryDiv = document.getElementById('videoParamsText');
-            if (!summaryDiv) return;
-            
-            const duration = document.getElementById('duration').value;
-            const fps = document.getElementById('fps').value;
-            const motionStrength = document.getElementById('motionStrength').value;
-            const width = document.getElementById('videoWidth').value;
-            const height = document.getElementById('videoHeight').value;
-            const prompt = document.getElementById('videoPrompt').value;
-            
-            const summary = [
-                `时长: ${duration}秒 | 帧率: ${fps} FPS | 运动强度: ${motionStrength}`,
-                `分辨率: ${width}×${height}`,
-                prompt ? `提示词: ${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}` : '无提示词'
-            ].join('<br>');
-            
-            summaryDiv.innerHTML = summary;
-        }
 
-        // 工作流配置
-        const workflowConfigs = {
-            'sd_basic': {
-                name: 'SD Basic',
-                description: '基础SD1.5工作流',
-                defaultResolution: '512x512',
-                recommendedResolutions: ['512x512', '768x768'],
-                models: [
-                    { value: 'Realistic\\majicmix7.safetensors', text: 'MajicMix - 写实 + 二次元混合模型,介于真实与动漫之间' },
-                    { value: 'Realistic\\realisticVisionV60B1_v51HyperVAE.safetensors', text: 'Realistic Vision - 超写实人像模型,擅长女性肖像、写真照' },
-                    { value: 'Realistic\\onlyrealistic_v30BakedVAE.safetensors', text: 'Onlyrealistic - 写实风,人像的真实质感' }
-                ]
-            },
-            'sdxl_basic': {
-                name: 'SDXL Basic',
-                description: '高分辨率SDXL工作流',
-                defaultResolution: '1024x1024',
-                recommendedResolutions: ['1024x1024', '832x1216', '1216x832', '1344x768'],
-                models: [
-                    { value: 'SDXL\\sd_xl_base_1.0.safetensors', text: 'SDXL Base - 官方 SDXL 基础模型' },
-                    { value: 'SDXL\\juggernautXL_juggXIByRundiffusion_2.safetensors', text: 'JuggernautXL - 多风格混合（写实 + 美型 + 半写实 + 插画）' },
-                    { value: 'SDXL\\Wanxiang_XLSuper_RealisticV8.4_V8.4.safetensors', text: 'Wanxiang_Super_Realistic - 基于 SDXL 官方模型微调优化,超写实风格人像与场景生成' },
-                    { value: 'SDXL\\turbovisionxlSuperFastXLBasedOnNew_tvxlV431Bakedvae.safetensors', text: 'SDXL Base - 高速度 + 高写实质量 的混合模型' }
-                ]
-            }
-        };
+        // 设置图片上传功能
+        function setupImageUpload() {
+            const uploadArea = document.getElementById('imageUploadArea');
+            const uploadInput = document.getElementById('imageUploadInput');
+            const uploadPreview = document.getElementById('uploadedImagePreview');
+            const previewImage = document.getElementById('previewImage');
 
-        // 更新工作流设置
-        function updateWorkflowSettings() {
-            const workflowSelect = document.getElementById('workflowSelect');
-            const selectedWorkflow = workflowSelect.value;
-            const config = workflowConfigs[selectedWorkflow];
-
-            if (!config) return;
-
-            // 更新帮助文本
-            const helpText = document.getElementById('workflowHelp');
-            helpText.textContent = config.description;
-
-            // 更新模型选择
-            updateModelOptions(config.models);
-
-            // 更新分辨率预设
-            updateResolutionPresets(config.recommendedResolutions);
-
-            // 设置默认分辨率
-            setDefaultResolution(config.defaultResolution);
-        }
-
-        // 更新模型选项
-        function updateModelOptions(models) {
-            const modelSelect = document.getElementById('modelSelect');
-            modelSelect.innerHTML = '';
-
-            models.forEach((model, index) => {
-                const option = document.createElement('option');
-                option.value = model.value;
-                option.textContent = model.text;
-                // 设置第一个为默认选中
-                if (index === 0) {
-                    option.selected = true;
-                }
-                modelSelect.appendChild(option);
+            // 点击上传区域触发文件选择
+            uploadArea.addEventListener('click', () => {
+                uploadInput.click();
             });
 
-            // 更新模型帮助文本
-            const modelHelp = document.getElementById('modelHelp');
-            if (modelHelp) {
-                modelHelp.textContent = `当前工作流推荐模型，共${models.length}个可选`;
-            }
-        }
+            // 文件选择处理
+            uploadInput.addEventListener('change', handleFileSelect);
 
-        // 更新分辨率预设
-        function updateResolutionPresets(recommendedResolutions) {
-            const presetSelect = document.getElementById('resolutionPreset');
-            const currentValue = presetSelect.value;
-
-            // 保留自定义选项
-            presetSelect.innerHTML = '<option value="custom">自定义</option>';
-
-            // 添加推荐分辨率
-            const allResolutions = [
-                '512x512', '768x768', '832x1216', '1024x1024',
-                '1216x832', '1344x768'
-            ];
-
-            allResolutions.forEach(resolution => {
-                const option = document.createElement('option');
-                option.value = resolution;
-                const [w, h] = resolution.split('x');
-                let label = resolution;
-
-                if (w === h) label += ' (正方形)';
-                else if (parseInt(h) > parseInt(w)) label += ' (竖屏)';
-                else label += ' (横屏)';
-
-                option.textContent = label;
-
-                // 标记推荐分辨率
-                if (recommendedResolutions.includes(resolution)) {
-                    option.style.fontWeight = 'bold';
-                    option.textContent += ' ⭐';
-                }
-
-                presetSelect.appendChild(option);
+            // 拖拽上传
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
             });
 
-            // 恢复之前的选择
-            if (currentValue && [...presetSelect.options].some(opt => opt.value === currentValue)) {
-                presetSelect.value = currentValue;
+            uploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileUpload(files[0]);
+                }
+            });
+        }
+
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFileUpload(file);
             }
         }
 
-        // 设置默认分辨率
-        function setDefaultResolution(defaultResolution) {
-            const [width, height] = defaultResolution.split('x');
-
-            // 更新分辨率预设选择
-            const presetSelect = document.getElementById('resolutionPreset');
-            presetSelect.value = defaultResolution;
-
-            // 更新宽度和高度
-            document.getElementById('width').value = width;
-            document.getElementById('height').value = height;
-        }
-
-        // 更新分辨率（从预设选择）
-        function updateResolution() {
-            const presetSelect = document.getElementById('resolutionPreset');
-            const selectedPreset = presetSelect.value;
-
-            if (selectedPreset === 'custom') {
-                // 自定义模式，不改变当前值
+        // 处理文件上传
+        async function handleFileUpload(file) {
+            // 验证文件类型
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                showError('请上传 JPG、PNG 或 WebP 格式的图片');
                 return;
             }
 
-            const [width, height] = selectedPreset.split('x');
-            document.getElementById('width').value = width;
-            document.getElementById('height').value = height;
-        }
+            // 验证文件大小 (10MB)
+            const maxSize = 10 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showError('文件大小不能超过 10MB');
+                return;
+            }
 
-        // 监听宽度和高度变化，更新预设选择
-        function bindResolutionEvents() {
-            const widthSelect = document.getElementById('width');
-            const heightSelect = document.getElementById('height');
-            const presetSelect = document.getElementById('resolutionPreset');
+            try {
+                // 显示上传进度
+                const uploadArea = document.getElementById('imageUploadArea');
+                uploadArea.innerHTML = `
+                    <div class="upload-icon">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="upload-text">正在上传图片...</div>
+                `;
 
-            function updatePresetFromResolution() {
-                const width = widthSelect.value;
-                const height = heightSelect.value;
-                const resolution = `${width}x${height}`;
+                // 创建FormData
+                const formData = new FormData();
+                formData.append('file', file);
 
-                // 检查是否匹配预设
-                const matchingOption = [...presetSelect.options].find(opt => opt.value === resolution);
-                if (matchingOption) {
-                    presetSelect.value = resolution;
+                // 上传到服务器
+                const response = await fetch(`${API_BASE}/v2/upload/image`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+
+                    // 保存上传结果
+                    uploadedImageData = {
+                        filename: result.filename,
+                        relative_path: result.relative_path,
+                        full_path: result.full_path
+                    };
+
+                    // 显示预览
+                    showImagePreview(result.relative_path);
+                    showSuccess('图片上传成功！');
                 } else {
-                    presetSelect.value = 'custom';
+                    const error = await response.json();
+                    throw new Error(error.detail || '上传失败');
                 }
+            } catch (error) {
+                console.error('图片上传失败:', error);
+                showError('图片上传失败: ' + error.message);
+                resetUploadArea();
             }
-
-            widthSelect.addEventListener('change', updatePresetFromResolution);
-            heightSelect.addEventListener('change', updatePresetFromResolution);
         }
 
-        // 初始化工作流设置
-        function initializeWorkflowSettings() {
-            // 设置默认工作流
-            updateWorkflowSettings();
+        // 显示图片预览
+        function showImagePreview(imagePath) {
+            const uploadArea = document.getElementById('imageUploadArea');
+            const uploadPreview = document.getElementById('uploadedImagePreview');
+            const previewImage = document.getElementById('previewImage');
 
-            // 绑定分辨率事件
-            bindResolutionEvents();
+            // 隐藏上传区域，显示预览
+            uploadArea.style.display = 'none';
+            uploadPreview.style.display = 'block';
+
+            // 设置预览图片
+            previewImage.src = `${API_BASE}/v2/uploads/${imagePath}`;
         }
 
-
-        // 在页面加载时初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            // 延迟初始化，确保所有元素都已加载
-            setTimeout(initializeWorkflowSettings, 100);
-        });
-
-        // ========== 图生视频相关函数 ==========
-
-        // 验证视频参数
-        function validateVideoParams() {
-            const duration = parseFloat(document.getElementById('duration').value);
-            const fps = parseInt(document.getElementById('fps').value);
-            const motionStrength = parseFloat(document.getElementById('motionStrength').value);
-            const width = parseInt(document.getElementById('videoWidth').value);
-            const height = parseInt(document.getElementById('videoHeight').value);
-
-            let isValid = true;
-
-            // 验证时长
-            if (duration < 1 || duration > 10) {
-                isValid = false;
-            }
-
-            // 验证帧率
-            if (fps < 8 || fps > 60) {
-                isValid = false;
-            }
-
-            // 验证运动强度
-            if (motionStrength < 0.1 || motionStrength > 1.0) {
-                isValid = false;
-            }
-
-            // 验证宽度和高度
-            if (width < 256 || width > 1024 || width % 64 !== 0) {
-                isValid = false;
-            }
-
-            if (height < 256 || height > 1024 || height % 64 !== 0) {
-                isValid = false;
-            }
-
-            return isValid;
+        // 移除上传的图片
+        function removeUploadedImage() {
+            uploadedImageData = null;
+            resetUploadArea();
         }
 
-        // 更新视频参数摘要
-        function updateVideoParamsSummary() {
-            const summaryDiv = document.getElementById('videoParamsText');
-            if (!summaryDiv) return;
+        // 重置上传区域
+        function resetUploadArea() {
+            const uploadArea = document.getElementById('imageUploadArea');
+            const uploadPreview = document.getElementById('uploadedImagePreview');
+            const uploadInput = document.getElementById('imageUploadInput');
 
-            const duration = document.getElementById('duration').value;
-            const fps = document.getElementById('fps').value;
-            const motionStrength = document.getElementById('motionStrength').value;
-            const width = document.getElementById('videoWidth').value;
-            const height = document.getElementById('videoHeight').value;
-            const prompt = document.getElementById('videoPrompt').value;
-            const imageFile = document.getElementById('imageUpload').files[0];
+            uploadArea.style.display = 'block';
+            uploadPreview.style.display = 'none';
+            uploadInput.value = '';
 
-            const summary = [
-                `时长: ${duration}秒 | 帧率: ${fps} FPS | 运动强度: ${motionStrength}`,
-                `分辨率: ${width}×${height}`,
-                imageFile ? `图片: ${imageFile.name}` : '未选择图片',
-                prompt ? `提示词: ${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}` : '无提示词'
-            ];
-
-            summaryDiv.innerHTML = summary.join('<br>');
+            uploadArea.innerHTML = `
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <div class="upload-text">点击或拖拽上传图片</div>
+                <div class="upload-hint">支持 JPG、PNG、WebP 格式，最大 10MB</div>
+            `;
         }
 
-        // 计算视频生成预估时间
-        function calculateVideoEstimatedTime(formData) {
-            const duration = parseFloat(formData.get('duration'));
-            const fps = parseInt(formData.get('fps'));
+        // 切换到视频生成模式并使用指定图片
+        async function switchToVideoMode(imageUrl, prompt) {
+            try {
+                // 切换到图生视频模式
+                const modeSelect = document.getElementById('creationModeSelect');
+                modeSelect.value = 'image-to-video';
+                handleModeChange();
 
-            // 基础时间（秒）
-            let baseTime = 30;
+                // 设置提示词
+                if (prompt) {
+                    const promptInput = document.getElementById('promptInput');
+                    promptInput.value = prompt;
+                }
 
-            // 根据时长调整
-            baseTime += duration * 10;
+                // 下载图片并上传到服务器
+                showSuccess('正在准备图片，请稍候...');
 
-            // 根据帧率调整
-            baseTime += fps * 2;
+                const response = await fetch(imageUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
 
-            return Math.max(baseTime, 60); // 最少1分钟
-        }
+                if (response.ok) {
+                    const blob = await response.blob();
 
-        // 格式化时间显示
-        function formatTime(seconds) {
-            if (seconds < 60) {
-                return `${seconds}秒`;
-            } else if (seconds < 3600) {
-                const minutes = Math.floor(seconds / 60);
-                return `${minutes}分钟`;
-            } else {
-                const hours = Math.floor(seconds / 3600);
-                const minutes = Math.floor((seconds % 3600) / 60);
-                return `${hours}小时${minutes}分`;
+                    // 创建File对象
+                    const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
+
+                    // 上传图片
+                    await handleFileUpload(file);
+
+                    showSuccess('图片已准备就绪，可以开始生成视频！');
+                } else {
+                    throw new Error('获取图片失败');
+                }
+            } catch (error) {
+                console.error('切换到视频模式失败:', error);
+                showError('切换到视频模式失败: ' + error.message);
             }
         }
     </script>
 </body>
 </html>
+    </div>

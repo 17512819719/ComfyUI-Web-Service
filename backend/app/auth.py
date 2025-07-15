@@ -18,12 +18,18 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 def verify_token(token: str):
-    """验证令牌"""
+    """验证令牌（兼容性函数）"""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        from .services.client_auth_service import get_client_auth_service
+        auth_service = get_client_auth_service()
+        return auth_service.verify_token(token)
+    except ImportError:
+        # 如果客户端认证服务不可用，使用原始验证方式
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username: str = payload.get("sub")
+            if username is None:
+                raise HTTPException(status_code=401, detail="无效的认证令牌")
+            return payload
+        except JWTError:
             raise HTTPException(status_code=401, detail="无效的认证令牌")
-        return payload
-    except JWTError:
-        raise HTTPException(status_code=401, detail="无效的认证令牌")

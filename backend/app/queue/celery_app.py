@@ -42,7 +42,7 @@ except:
 # 配置Celery
 celery_app.conf.update(
     broker_url=final_broker_url,
-    result_backend=final_result_backend,
+    result_backend='cache+memory://',  # 使用内存后端，避免Redis序列化问题
     task_serializer=task_queue_config.get('task_serializer', 'json'),
     result_serializer=task_queue_config.get('result_serializer', 'json'),
     accept_content=task_queue_config.get('accept_content', ['json']),
@@ -50,7 +50,8 @@ celery_app.conf.update(
     enable_utc=task_queue_config.get('enable_utc', True),
     task_routes=task_queue_config.get('task_routes', {}),
     worker_prefetch_multiplier=task_queue_config.get('worker_prefetch_multiplier', 1),
-    task_acks_late=task_queue_config.get('task_acks_late', True),
+    task_acks_late=False,  # 禁用延迟确认，避免未确认任务恢复
+    task_reject_on_worker_lost=True,  # Worker丢失时拒绝任务
     worker_max_tasks_per_child=task_queue_config.get('worker_max_tasks_per_child', 100),
 
     # 任务结果过期时间
@@ -79,6 +80,72 @@ celery_app.conf.update(
 
 # 自动发现任务
 celery_app.autodiscover_tasks(['app.queue'])
+
+
+# Worker启动时的信号处理
+from celery.signals import worker_ready, worker_shutdown
+
+@worker_ready.connect
+def init_worker(sender, **kwargs):
+    """Worker启动完成时初始化数据库连接"""
+    try:
+        # 初始化配置管理器
+        from ..core.config_manager import get_config_manager
+        config_manager = get_config_manager()
+
+        # 重新加载配置文件（确保最新配置）
+        config_manager.reload_config()
+        print("✅ Celery Worker: 配置文件已加载")
+
+        # 初始化数据库连接
+        from ..database.connection import initialize_database
+        mysql_config = config_manager.get_mysql_config()
+
+        if not mysql_config:
+            print("❌ Celery Worker: MySQL配置为空")
+            return
+
+        # 检查配置结构
+        print(f"🔍 Celery Worker: MySQL配置结构: {list(mysql_config.keys())}")
+
+        # 确保包含所有必需的数据库配置
+        required_dbs = ['client', 'admin', 'shared']
+        for db_name in required_dbs:
+            if db_name not in mysql_config:
+                print(f"❌ Celery Worker: 缺少数据库配置: {db_name}")
+                return
+
+        # 构建正确的配置格式
+        database_config = {'mysql': mysql_config}
+        initialize_database(database_config)
+        print("✅ Celery Worker: 数据库连接已初始化")
+
+        # 初始化数据库任务状态管理器
+        from ..database.task_status_manager import get_database_task_status_manager
+        task_manager = get_database_task_status_manager()
+        print("✅ Celery Worker: 数据库任务状态管理器已初始化")
+
+        # 测试数据库连接
+        task_manager = get_database_task_status_manager()
+        if task_manager:
+            print("✅ Celery Worker: 数据库连接测试成功")
+        else:
+            print("⚠️ Celery Worker: 数据库连接测试失败")
+
+    except Exception as e:
+        import traceback
+        print(f"❌ Celery Worker: 数据库初始化失败: {e}")
+        print(f"详细错误: {traceback.format_exc()}")
+
+
+@worker_shutdown.connect
+def cleanup_worker(sender, **kwargs):
+    """Worker关闭时清理资源"""
+    try:
+        print("🔄 Celery Worker: 正在清理数据库连接...")
+        # 这里可以添加数据库连接清理逻辑
+    except Exception as e:
+        print(f"⚠️ Celery Worker: 清理资源失败: {e}")
 
 
 def get_celery_app():

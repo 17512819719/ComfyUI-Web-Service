@@ -1,7 +1,7 @@
 {
   "4": {
     "inputs": {
-      "ckpt_name": "Realistic\\majicmix7.safetensors"
+      "ckpt_name": "SD\\onlyrealistic_v30BakedVAE.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {
@@ -46,32 +46,6 @@
       "title": "VAE解码"
     }
   },
-  "13": {
-    "inputs": {
-      "shift": 3.0000000000000004,
-      "model": [
-        "4",
-        0
-      ]
-    },
-    "class_type": "ModelSamplingSD3",
-    "_meta": {
-      "title": "采样算法（SD3）"
-    }
-  },
-  "50": {
-    "inputs": {
-      "filename_prefix": "ComfyUI",
-      "images": [
-        "8",
-        0
-      ]
-    },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "保存图像"
-    }
-  },
   "71": {
     "inputs": {
       "text": [
@@ -107,7 +81,7 @@
   },
   "294": {
     "inputs": {
-      "seed": 124813189548542,
+      "seed": 555656483415287,
       "steps": 20,
       "cfg": 8,
       "sampler_name": "euler",
@@ -141,7 +115,7 @@
       "to_translate": "en",
       "manual_translate": false,
       "Manual Trasnlate": "Manual Trasnlate",
-      "text": "喜羊羊",
+      "text": "鸡",
       "speak_and_recognation": {
         "__value__": [
           false,
@@ -161,7 +135,7 @@
       "enhancenegative": 1,
       "insanitylevel": 0,
       "base_model": "SD1.5",
-      "seed": 215654033774668,
+      "seed": 224514968340480,
       "speak_and_recognation": {
         "__value__": [
           false,
@@ -172,6 +146,33 @@
     "class_type": "AutoNegativePrompt",
     "_meta": {
       "title": "Auto Negative Prompt"
+    }
+  },
+  "318": {
+    "inputs": {
+      "output_path": "[time(%Y/%m/%d)]",
+      "filename_prefix": "SD",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": "false",
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "false",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
     }
   }
 }

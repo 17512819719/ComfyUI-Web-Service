@@ -1,12 +1,49 @@
 # 多模态内容生成工作流管理系统配置
 version: "1.0"
 
-# ComfyUI配置
+# ComfyUI配置 (兼容性保留，用于单机模式)
 comfyui:
   host: "127.0.0.1"
   port: 8188
-  output_dir: "E:\\ComfyUI\\ComfyUI\\output"
+  output_dir: "outputs"
   timeout: 300  # 请求超时时间（秒）
+
+# 分布式节点配置
+nodes:
+  # 节点发现模式: static(静态配置) | dynamic(动态发现) | hybrid(混合模式)
+  discovery_mode: "static"
+
+  # 健康检查配置
+  health_check:
+    interval: 30  # 健康检查间隔(秒)
+    timeout: 5    # 健康检查超时(秒)
+    heartbeat_timeout: 60  # 心跳超时(秒)
+    retry_attempts: 3      # 重试次数
+
+  # 负载均衡配置
+  load_balancing:
+    strategy: "least_loaded"  # round_robin | least_loaded | weighted | random
+    enable_failover: true     # 启用故障转移
+    max_retries: 3           # 最大重试次数
+
+  # 静态节点配置 - 先配置一台从机进行测试
+  static_nodes:
+    - node_id: "comfyui-worker-1"
+      host: "192.168.1.101"  # 修改为实际的从机IP地址
+      port: 8188
+      max_concurrent: 4
+      capabilities: ["text_to_image"]
+      metadata:
+        location: "worker-server-1"
+        gpu_model: "RTX 4090"
+        priority: 1
+        description: "主要工作节点"
+
+  # 动态发现配置 (预留)
+  dynamic_discovery:
+    enabled: false
+    broadcast_port: 8189
+    discovery_interval: 60
 
 # Redis配置（任务队列）
 redis:
@@ -15,13 +52,46 @@ redis:
   db: 0
   password: null
 
-# MySQL数据库配置
+# MySQL数据库配置（三数据库架构）
 mysql:
-  host: localhost
-  port: 3306
-  user: root
-  password: "123456"
-  database: comfyui_admin
+  # 客户端数据库配置
+  client:
+    host: localhost
+    port: 3306
+    user: root
+    password: "123456"
+    database: comfyui_client
+    charset: utf8mb4
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 3600
+
+  # 管理后台数据库配置
+  admin:
+    host: localhost
+    port: 3306
+    user: root
+    password: "123456"
+    database: comfyui_admin
+    charset: utf8mb4
+    pool_size: 5
+    max_overflow: 10
+    pool_timeout: 30
+    pool_recycle: 3600
+
+  # 共享数据库配置
+  shared:
+    host: localhost
+    port: 3306
+    user: root
+    password: "123456"
+    database: comfyui_shared
+    charset: utf8mb4
+    pool_size: 15
+    max_overflow: 30
+    pool_timeout: 30
+    pool_recycle: 3600
 
 # 任务类型配置
 task_types:
@@ -35,7 +105,7 @@ task_types:
       sd_basic:
         name: "Stable Diffusion Basic"
         version: "1.0"
-        workflow_file: "D:\\Project\\ComfyUI-Web-Service\\backend\\workflows\\text_to_image\\文生图.json"
+        workflow_file: "workflows/text_to_image/文生图.json"
         description: "基础文生图工作流"
 
         # 参数映射配置 - 精确定义每个参数在工作流中的位置
@@ -66,7 +136,7 @@ task_types:
           batch_size:
             node_id: "135"
             input_name: "batch_size"
-            default_value: 1
+            default_value: 4
             data_type: "int"
             description: "批次数量"
 
@@ -86,6 +156,14 @@ task_types:
             data_type: "string"
             description: "反向提示词"
 
+          # 5. 种子参数 - 节点294的KSampler
+          seed:
+            node_id: "294"
+            input_name: "seed"
+            default_value: -1
+            data_type: "int"
+            description: "随机种子，-1表示随机生成"
+
         # 前端允许提交的参数白名单
         allowed_frontend_params:
           - checkpoint
@@ -99,7 +177,7 @@ task_types:
       sdxl_basic:
         name: "SDXL Basic"
         version: "1.0"
-        workflow_file: "D:\\Project\\ComfyUI-Web-Service\\backend\\workflows\\text_to_image\\SDXL-文生图.json"
+        workflow_file: "workflows/text_to_image/SDXL-文生图.json"
         description: "SDXL基础文生图工作流，支持更高分辨率"
 
         # 参数映射配置 - 精确定义每个参数在SDXL工作流中的位置
@@ -150,6 +228,14 @@ task_types:
             data_type: "string"
             description: "反向提示词"
 
+          # 5. 种子参数 - 节点10的KSamplerAdvanced (BASE)
+          seed:
+            node_id: "10"
+            input_name: "noise_seed"
+            default_value: -1
+            data_type: "int"
+            description: "随机种子，-1表示随机生成"
+
         # 前端允许提交的参数白名单
         allowed_frontend_params:
           - checkpoint
@@ -160,7 +246,50 @@ task_types:
           - prompt
           - negative_prompt
 
+  # 图生视频任务
+  image_to_video:
+    enabled: true
+    default_workflow: "Wan2.1 i2v"
+    max_concurrent_tasks: 2
+    priority: 2
+    workflows:
+      "Wan2.1 i2v":
+        name: "Wan2.1 Image2Video"
+        version: "1.0"
+        workflow_file: "workflows/image_to_video/Wan2.1 图生视频.json"
+        description: "Wan2.1 --- 万相通义开源视频模型"
 
+        # 参数映射配置 - 精确定义每个参数在工作流中的位置
+        parameter_mapping:
+          # 1. 正向提示词 - 节点55的Insert Positive Prompt
+          prompt:
+            node_id: "55"
+            input_name: "text"
+            default_value: ""
+            data_type: "string"
+            description: "正向提示词"
+
+          # 2. 反向提示词 - 节点59的Insert Negative Prompt
+          negative_prompt:
+            node_id: "59"
+            input_name: "text"
+            default_value: "text, watermark"
+            data_type: "string"
+            description: "反向提示词"
+
+          # 3. 加载图片 - 节点54的LoadImage
+          image:
+            node_id: "54"
+            input_name: "image"
+            default_value: ""
+            data_type: "string"
+            description: "加载图片路径"
+
+        # 前端允许提交的参数白名单
+        allowed_frontend_params:
+          - prompt
+          - negative_prompt
+          - image
 
 # 参数处理策略配置
 parameter_strategies:
@@ -179,6 +308,7 @@ task_queue:
   enable_utc: true
   task_routes:
     "app.queue.tasks.execute_text_to_image_task": {"queue": "text_to_image"}
+    "app.queue.tasks.execute_image_to_video_task": {"queue": "image_to_video"}
     "app.queue.tasks.execute_generic_workflow_task": {"queue": "celery"}
   worker_prefetch_multiplier: 1
   task_acks_late: true

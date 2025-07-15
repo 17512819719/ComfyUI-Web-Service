@@ -12,6 +12,7 @@ from datetime import datetime
 class TaskType(Enum):
     """任务类型枚举"""
     TEXT_TO_IMAGE = "text_to_image"
+    IMAGE_TO_VIDEO = "image_to_video"
     # 预留其他任务类型
     TEXT_TO_AUDIO = "text_to_audio"
     IMAGE_TO_3D = "image_to_3d"
@@ -154,6 +155,87 @@ class WorkflowExecutionError(Exception):
 class TaskProcessingError(Exception):
     """任务处理错误异常"""
     pass
+
+
+class NodeManagementError(Exception):
+    """节点管理错误异常"""
+    pass
+
+
+class NodeStatus(Enum):
+    """节点状态枚举"""
+    ONLINE = "online"
+    OFFLINE = "offline"
+    BUSY = "busy"
+    ERROR = "error"
+    MAINTENANCE = "maintenance"
+
+
+@dataclass
+class ComfyUINode:
+    """ComfyUI节点信息"""
+    node_id: str
+    host: str
+    port: int
+    status: NodeStatus
+    last_heartbeat: datetime
+    current_load: int = 0  # 当前任务数
+    max_concurrent: int = 4  # 最大并发任务数
+    capabilities: List[str] = None  # 支持的任务类型
+    metadata: Dict[str, Any] = None  # 额外元数据
+
+    def __post_init__(self):
+        if self.capabilities is None:
+            self.capabilities = []
+        if self.metadata is None:
+            self.metadata = {}
+
+    @property
+    def url(self) -> str:
+        """获取节点URL"""
+        return f"http://{self.host}:{self.port}"
+
+    @property
+    def is_available(self) -> bool:
+        """检查节点是否可用"""
+        return (self.status == NodeStatus.ONLINE and
+                self.current_load < self.max_concurrent)
+
+    @property
+    def load_percentage(self) -> float:
+        """获取负载百分比"""
+        if self.max_concurrent == 0:
+            return 100.0
+        return (self.current_load / self.max_concurrent) * 100
+
+
+class BaseNodeManager(ABC):
+    """节点管理器基类"""
+
+    @abstractmethod
+    async def register_node(self, node: ComfyUINode) -> bool:
+        """注册节点"""
+        pass
+
+    @abstractmethod
+    async def unregister_node(self, node_id: str) -> bool:
+        """注销节点"""
+        pass
+
+    @abstractmethod
+    async def get_available_nodes(self, task_type: Optional[TaskType] = None) -> List[ComfyUINode]:
+        """获取可用节点"""
+        pass
+
+    @abstractmethod
+    async def update_node_status(self, node_id: str, status: NodeStatus) -> bool:
+        """更新节点状态"""
+        pass
+
+    @abstractmethod
+    async def health_check(self, node_id: str) -> bool:
+        """健康检查"""
+        pass
 
 
 # 常用的参数类型定义

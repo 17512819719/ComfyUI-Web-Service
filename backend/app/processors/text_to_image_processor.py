@@ -22,68 +22,99 @@ class TextToImageProcessor(BaseTaskProcessor):
     
     def validate_params(self, params: Dict[str, Any]) -> bool:
         """验证文生图参数"""
-        required_params = ['prompt']
-        errors = []
+        try:
+            required_params = ['prompt']
+            errors = []
+
+            logger.debug(f"验证文生图参数: {list(params.keys())}")
+
+            # 检查必需参数
+            for param in required_params:
+                if param not in params or not params[param]:
+                    errors.append(f"缺少必需参数: {param}")
+
+            # 验证提示词长度
+            if 'prompt' in params:
+                prompt = params['prompt']
+                if not isinstance(prompt, str):
+                    errors.append("提示词必须是字符串类型")
+                elif len(prompt) > 2000:
+                    errors.append("提示词长度不能超过2000字符")
+                elif len(prompt.strip()) == 0:
+                    errors.append("提示词不能为空")
+
+            # 验证负面提示词
+            if 'negative_prompt' in params:
+                negative_prompt = params['negative_prompt']
+                if negative_prompt and not isinstance(negative_prompt, str):
+                    errors.append("负面提示词必须是字符串类型")
+                elif negative_prompt and len(negative_prompt) > 2000:
+                    errors.append("负面提示词长度不能超过2000字符")
+
+            # 验证尺寸参数
+            if 'width' in params:
+                width = params['width']
+                if not isinstance(width, int):
+                    try:
+                        width = int(width)
+                        params['width'] = width  # 自动类型转换
+                    except (ValueError, TypeError):
+                        errors.append("宽度必须是整数")
+
+                if isinstance(width, int) and (width < 64 or width > 2048):
+                    errors.append("宽度必须是64-2048之间的整数")
+                elif isinstance(width, int) and width % 64 != 0:
+                    errors.append("宽度必须是64的倍数")
         
-        # 检查必需参数
-        for param in required_params:
-            if param not in params or not params[param]:
-                errors.append(f"缺少必需参数: {param}")
+            # 验证高度参数
+            if 'height' in params:
+                height = params['height']
+                if not isinstance(height, int):
+                    try:
+                        height = int(height)
+                        params['height'] = height  # 自动类型转换
+                    except (ValueError, TypeError):
+                        errors.append("高度必须是整数")
+
+                if isinstance(height, int) and (height < 64 or height > 2048):
+                    errors.append("高度必须是64-2048之间的整数")
+                elif isinstance(height, int) and height % 64 != 0:
+                    errors.append("高度必须是64的倍数")
+
+            # 验证采样参数
+            if 'steps' in params:
+                steps = params['steps']
+                if not isinstance(steps, int) or steps < 1 or steps > 100:
+                    errors.append("采样步数必须是1-100之间的整数")
+
+            if 'cfg_scale' in params:
+                cfg_scale = params['cfg_scale']
+                if not isinstance(cfg_scale, (int, float)) or cfg_scale < 1.0 or cfg_scale > 20.0:
+                    errors.append("CFG Scale必须是1.0-20.0之间的数值")
+
+            if 'batch_size' in params:
+                batch_size = params['batch_size']
+                if not isinstance(batch_size, int) or batch_size < 1 or batch_size > 8:
+                    errors.append("批量大小必须是1-8之间的整数")
+
+            if 'seed' in params:
+                seed = params['seed']
+                if not isinstance(seed, int) or (seed < -1 or seed > 2147483647):
+                    errors.append("种子必须是-1到2147483647之间的整数")
         
-        # 验证提示词长度
-        if 'prompt' in params:
-            prompt = params['prompt']
-            if len(prompt) > 2000:
-                errors.append("提示词长度不能超过2000字符")
-            if len(prompt.strip()) == 0:
-                errors.append("提示词不能为空")
-        
-        # 验证负面提示词
-        if 'negative_prompt' in params:
-            negative_prompt = params['negative_prompt']
-            if len(negative_prompt) > 2000:
-                errors.append("负面提示词长度不能超过2000字符")
-        
-        # 验证尺寸参数
-        if 'width' in params:
-            width = params['width']
-            if not isinstance(width, int) or width < 64 or width > 2048:
-                errors.append("宽度必须是64-2048之间的整数")
-            if width % 64 != 0:
-                errors.append("宽度必须是64的倍数")
-        
-        if 'height' in params:
-            height = params['height']
-            if not isinstance(height, int) or height < 64 or height > 2048:
-                errors.append("高度必须是64-2048之间的整数")
-            if height % 64 != 0:
-                errors.append("高度必须是64的倍数")
-        
-        # 验证采样参数
-        if 'steps' in params:
-            steps = params['steps']
-            if not isinstance(steps, int) or steps < 1 or steps > 100:
-                errors.append("采样步数必须是1-100之间的整数")
-        
-        if 'cfg_scale' in params:
-            cfg_scale = params['cfg_scale']
-            if not isinstance(cfg_scale, (int, float)) or cfg_scale < 1.0 or cfg_scale > 20.0:
-                errors.append("CFG Scale必须是1.0-20.0之间的数值")
-        
-        if 'batch_size' in params:
-            batch_size = params['batch_size']
-            if not isinstance(batch_size, int) or batch_size < 1 or batch_size > 8:
-                errors.append("批量大小必须是1-8之间的整数")
-        
-        if 'seed' in params:
-            seed = params['seed']
-            if not isinstance(seed, int) or (seed < -1 or seed > 2147483647):
-                errors.append("种子必须是-1到2147483647之间的整数")
-        
-        if errors:
-            raise ValidationError("; ".join(errors))
-        
-        return True
+            if errors:
+                error_msg = "; ".join(errors)
+                logger.warning(f"参数验证失败: {error_msg}")
+                raise ValidationError(error_msg)
+
+            logger.debug("参数验证通过")
+            return True
+
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"参数验证过程中发生异常: {e}")
+            raise ValidationError(f"参数验证失败: {str(e)}")
     
     def process_params(self, request: TaskRequest, config: WorkflowConfig) -> Dict[str, Any]:
         """处理文生图参数 - 使用新的工作流参数处理器"""
@@ -116,6 +147,10 @@ class TextToImageProcessor(BaseTaskProcessor):
         """从请求中提取前端参数"""
         # 从request.parameters中提取所有参数
         params = request.parameters.copy()
+
+        # 调试日志：显示原始参数
+        logger.info(f"原始请求参数 [{request.task_id}]: {list(params.keys())}")
+        logger.info(f"参数详情: {params}")
 
         # 移除非业务参数
         non_business_params = ['task_id', 'user_id', 'task_type', 'workflow_name']

@@ -9,6 +9,7 @@ from enum import Enum
 class TaskTypeEnum(str, Enum):
     """任务类型枚举"""
     TEXT_TO_IMAGE = "text_to_image"
+    IMAGE_TO_VIDEO = "image_to_video"
 
 
 class TaskStatusEnum(str, Enum):
@@ -35,11 +36,12 @@ class TextToImageRequest(BaseTaskRequest):
     negative_prompt: Optional[str] = Field("", max_length=2000, description="负面提示词")
     width: Optional[int] = Field(512, ge=64, le=2048, description="图像宽度")
     height: Optional[int] = Field(512, ge=64, le=2048, description="图像高度")
-    steps: Optional[int] = Field(20, ge=1, le=100, description="采样步数")
-    cfg_scale: Optional[float] = Field(7.0, ge=1.0, le=20.0, description="CFG引导强度")
-    sampler: Optional[str] = Field("euler", description="采样器")
-    scheduler: Optional[str] = Field("normal", description="调度器")
-    batch_size: Optional[int] = Field(1, ge=1, le=8, description="批量大小")
+    # steps: Optional[int] = Field(20, ge=1, le=100, description="采样步数")
+    # cfg_scale: Optional[float] = Field(7.0, ge=1.0, le=20.0, description="CFG引导强度")
+    # sampler: Optional[str] = Field("euler", description="采样器")
+    # scheduler: Optional[str] = Field("normal", description="调度器")
+    # batch_size: Optional[int] = Field(1, ge=1, le=8, description="批量大小")
+    # batch_size: Optional[int] = Field(None, description="批量大小")
     seed: Optional[int] = Field(-1, ge=-1, le=2147483647, description="随机种子")
 
     # 模型和工作流参数
@@ -47,8 +49,8 @@ class TextToImageRequest(BaseTaskRequest):
     workflow_name: Optional[str] = Field("sd_basic", description="工作流名称")
 
     # 预设参数
-    resolution_preset: Optional[str] = Field(None, description="分辨率预设")
-    quality_preset: Optional[str] = Field(None, description="质量预设")
+    # resolution_preset: Optional[str] = Field(None, description="分辨率预设")
+    # quality_preset: Optional[str] = Field(None, description="质量预设")
     
     @validator('width', 'height')
     def validate_dimensions(cls, v):
@@ -57,6 +59,17 @@ class TextToImageRequest(BaseTaskRequest):
         return v
 
 
+class ImageToVideoRequest(BaseTaskRequest):
+    """图生视频请求"""
+    prompt: str = Field(..., min_length=1, max_length=2000, description="正面提示词")
+    negative_prompt: Optional[str] = Field("", max_length=2000, description="负面提示词")
+    image: str = Field(..., description="输入图片路径或base64编码")
+
+    # 工作流参数
+    workflow_name: Optional[str] = Field("Wan2.1 i2v", description="工作流名称")
+
+    class Config:
+        extra = "allow"  # 允许额外字段
 
 
 class TaskResponse(BaseModel):
@@ -212,3 +225,68 @@ FPS_PRESETS = {
     'basic': 12,
     'minimal': 8
 }
+
+
+# 节点管理相关数据模型
+class NodeStatusEnum(str, Enum):
+    """节点状态枚举"""
+    ONLINE = "online"
+    OFFLINE = "offline"
+    BUSY = "busy"
+    ERROR = "error"
+    MAINTENANCE = "maintenance"
+
+
+class NodeInfo(BaseModel):
+    """节点信息"""
+    node_id: str = Field(..., description="节点ID")
+    host: str = Field(..., description="节点主机地址")
+    port: int = Field(..., description="节点端口")
+    status: NodeStatusEnum = Field(..., description="节点状态")
+    current_load: int = Field(0, description="当前负载")
+    max_concurrent: int = Field(4, description="最大并发数")
+    load_percentage: float = Field(0.0, description="负载百分比")
+    capabilities: List[str] = Field(default_factory=list, description="支持的任务类型")
+    last_heartbeat: str = Field(..., description="最后心跳时间")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="节点元数据")
+
+
+class NodeRegistrationRequest(BaseModel):
+    """节点注册请求"""
+    node_id: str = Field(..., description="节点ID")
+    host: str = Field(..., description="节点主机地址")
+    port: int = Field(..., ge=1, le=65535, description="节点端口")
+    max_concurrent: int = Field(4, ge=1, le=16, description="最大并发数")
+    capabilities: List[str] = Field(default_factory=list, description="支持的任务类型")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="节点元数据")
+
+
+class ClusterStatsResponse(BaseModel):
+    """集群统计响应"""
+    total_nodes: int = Field(..., description="总节点数")
+    online_nodes: int = Field(..., description="在线节点数")
+    offline_nodes: int = Field(..., description="离线节点数")
+    total_capacity: int = Field(..., description="总容量")
+    current_load: int = Field(..., description="当前负载")
+    load_percentage: float = Field(..., description="负载百分比")
+    available_slots: int = Field(..., description="可用槽位")
+
+
+class NodesListResponse(BaseModel):
+    """节点列表响应"""
+    nodes: List[NodeInfo] = Field(..., description="节点列表")
+    cluster_stats: ClusterStatsResponse = Field(..., description="集群统计")
+
+
+class LoadBalancingConfigResponse(BaseModel):
+    """负载均衡配置响应"""
+    strategy: str = Field(..., description="负载均衡策略")
+    enable_failover: bool = Field(..., description="是否启用故障转移")
+    max_retries: int = Field(..., description="最大重试次数")
+
+
+class NodeOperationResponse(BaseModel):
+    """节点操作响应"""
+    success: bool = Field(..., description="操作是否成功")
+    message: str = Field(..., description="操作消息")
+    node_id: Optional[str] = Field(None, description="节点ID")

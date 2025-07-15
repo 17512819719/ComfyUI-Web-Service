@@ -55,12 +55,18 @@ class ParameterMapper:
             'celery_task_id', 'created_at', 'updated_at', 'estimated_time'
         }
 
+        # 调试日志：显示接收到的所有参数
+        logger.info(f"收到前端参数 [{self.workflow_name}]: {list(frontend_params.keys())}")
+        logger.info(f"允许的参数列表: {self.allowed_params}")
+
         for param_name in frontend_params.keys():
             # 跳过系统内部参数
             if param_name in system_params:
+                logger.debug(f"跳过系统参数: {param_name}")
                 continue
 
             if param_name not in self.allowed_params:
+                logger.warning(f"发现不允许的参数: {param_name} = {frontend_params[param_name]}")
                 errors.append(f"不允许的参数: {param_name}")
 
         if errors:
@@ -99,8 +105,23 @@ class ParameterMapper:
                     final_params[param_name] = default_value
                     logger.debug(f"使用默认参数 [{param_name}]: {default_value}")
         
+        # 处理特殊参数
+        final_params = self._process_special_parameters(final_params)
+
         logger.info(f"参数合并完成 [{self.workflow_name}]: {len(final_params)} 个参数")
         return final_params
+
+    def _process_special_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """处理特殊参数，如随机种子生成"""
+        result = params.copy()
+
+        # 处理随机种子
+        if 'seed' in result and result['seed'] == -1:
+            import random
+            result['seed'] = random.randint(0, 2147483647)
+            logger.info(f"生成随机种子: {result['seed']}")
+
+        return result
 
 
 class WorkflowInjector:

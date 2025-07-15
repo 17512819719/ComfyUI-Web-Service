@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from .base import (
     TaskType, TaskResult, TaskStatus, WorkflowConfig,
-    BaseWorkflowExecutor, WorkflowExecutionError
+    BaseWorkflowExecutor, WorkflowExecutionError, ComfyUINode
 )
 from .config_manager import get_config_manager
 
@@ -20,16 +20,40 @@ logger = logging.getLogger(__name__)
 
 
 class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
-    """ComfyUI工作流执行器"""
-    
+    """ComfyUI工作流执行器 - 支持分布式节点"""
+
     def __init__(self):
         self.config_manager = get_config_manager()
         self.comfyui_config = self.config_manager.get_comfyui_config()
+
+        # 兼容性配置（单机模式）
         self.host = self.comfyui_config.get('host', '127.0.0.1')
         self.port = self.comfyui_config.get('port', 8188)
         self.timeout = self.comfyui_config.get('timeout', 300)
         self.base_url = f"http://{self.host}:{self.port}"
         self.ws_url = f"ws://{self.host}:{self.port}/ws"
+
+        # 分布式模式支持
+        self.is_distributed = self.config_manager.is_distributed_mode()
+        self.node_manager = None
+        self.load_balancer = None
+
+        if self.is_distributed:
+            # 延迟初始化，避免循环导入
+            self._init_distributed_components()
+
+    def _init_distributed_components(self):
+        """初始化分布式组件"""
+        try:
+            from .node_manager import get_node_manager
+            from .load_balancer import get_load_balancer
+
+            self.node_manager = get_node_manager()
+            self.load_balancer = get_load_balancer()
+            logger.info("分布式模式已启用")
+        except Exception as e:
+            logger.error(f"初始化分布式组件失败: {e}")
+            self.is_distributed = False
         
 
     async def execute(self, workflow_config: WorkflowConfig, workflow_data: Dict[str, Any]) -> TaskResult:
@@ -52,14 +76,19 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                 modified_workflow = await self._inject_parameters(workflow_file_data, workflow_data)
                 task_id = workflow_data.get('task_id', '')
 
-            # 提交工作流到ComfyUI
-            prompt_id = await self._submit_workflow(modified_workflow)
+            # 选择执行节点
+            selected_node = await self._select_execution_node(workflow_config.task_type, task_id)
+            if not selected_node:
+                raise WorkflowExecutionError("没有可用的ComfyUI节点")
+
+            # 提交工作流到选定的节点
+            prompt_id = await self._submit_workflow_to_node(modified_workflow, selected_node)
 
             # 监控执行进度
-            result = await self._monitor_execution(prompt_id, task_id)
+            result = await self._monitor_execution_on_node(prompt_id, task_id, selected_node)
 
             return result
-            
+
         except Exception as e:
             logger.error(f"工作流执行失败: {e}")
             return TaskResult(
@@ -67,7 +96,77 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                 status=TaskStatus.FAILED,
                 error_message=str(e)
             )
-    
+
+    async def _select_execution_node(self, task_type: TaskType, task_id: str) -> Optional[ComfyUINode]:
+        """选择执行节点"""
+        if not self.is_distributed:
+            # 单机模式，返回默认节点
+            from datetime import datetime
+            return ComfyUINode(
+                node_id="default",
+                host=self.host,
+                port=self.port,
+                status=NodeStatus.ONLINE,
+                last_heartbeat=datetime.now()
+            )
+
+        # 分布式模式，使用负载均衡器选择节点
+        if not self.node_manager or not self.load_balancer:
+            raise WorkflowExecutionError("分布式组件未初始化")
+
+        # 获取可用节点
+        available_nodes = await self.node_manager.get_available_nodes(task_type)
+        if not available_nodes:
+            raise WorkflowExecutionError("没有可用的ComfyUI节点")
+
+        # 使用负载均衡器选择最佳节点
+        selected_node = self.load_balancer.select_node(available_nodes, task_type)
+        if not selected_node:
+            raise WorkflowExecutionError("负载均衡器无法选择节点")
+
+        # 分配任务到节点
+        await self.node_manager.assign_task_to_node(selected_node.node_id, task_id)
+
+        logger.info(f"任务 {task_id} 分配到节点 {selected_node.node_id}")
+        return selected_node
+
+    async def _submit_workflow_to_node(self, workflow_data: Dict[str, Any], node: ComfyUINode) -> str:
+        """提交工作流到指定节点"""
+        if self.is_distributed:
+            # 使用节点的URL
+            base_url = node.url
+        else:
+            # 使用默认URL
+            base_url = self.base_url
+
+        return await self._submit_workflow_with_url(workflow_data, base_url)
+
+    async def _monitor_execution_on_node(self, prompt_id: str, task_id: str, node: ComfyUINode) -> TaskResult:
+        """在指定节点上监控执行"""
+        try:
+            if self.is_distributed:
+                # 使用节点的URL
+                base_url = node.url
+                ws_url = f"ws://{node.host}:{node.port}/ws"
+            else:
+                # 使用默认URL
+                base_url = self.base_url
+                ws_url = self.ws_url
+
+            result = await self._monitor_execution_with_url(prompt_id, task_id, base_url, ws_url)
+
+            # 任务完成后从节点移除
+            if self.is_distributed and self.node_manager:
+                await self.node_manager.remove_task_from_node(node.node_id, task_id)
+
+            return result
+
+        except Exception as e:
+            # 任务失败时也要从节点移除
+            if self.is_distributed and self.node_manager:
+                await self.node_manager.remove_task_from_node(node.node_id, task_id)
+            raise e
+
     async def _load_workflow_file(self, workflow_file: str) -> Dict[str, Any]:
         """加载工作流文件"""
         # 直接使用配置文件中的路径，不再添加额外前缀
@@ -382,19 +481,19 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
             if 'motion_strength' in parameters:
                 inputs['motion_strength'] = parameters['motion_strength']
     
-    async def _submit_workflow(self, workflow_data: Dict[str, Any]) -> str:
-        """提交工作流到ComfyUI"""
+    async def _submit_workflow_with_url(self, workflow_data: Dict[str, Any], base_url: str) -> str:
+        """提交工作流到指定URL的ComfyUI"""
         # 转换工作流格式为ComfyUI期望的格式
         comfyui_workflow = self._convert_to_comfyui_format(workflow_data)
 
         prompt_data = {"prompt": comfyui_workflow}
 
-        logger.debug(f"提交工作流数据: {json.dumps(prompt_data, indent=2, ensure_ascii=False)[:500]}...")
+        logger.debug(f"提交工作流到 {base_url}: {json.dumps(prompt_data, indent=2, ensure_ascii=False)[:500]}...")
 
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(
-                    f"{self.base_url}/prompt",
+                    f"{base_url}/prompt",
                     json=prompt_data,
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
@@ -402,7 +501,7 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                         result = await response.json()
                         prompt_id = result.get('prompt_id')
                         if prompt_id:
-                            logger.info(f"工作流提交成功: {prompt_id}")
+                            logger.info(f"工作流提交成功: {prompt_id} (节点: {base_url})")
                             return prompt_id
                         else:
                             raise WorkflowExecutionError("提交工作流失败：未获取到prompt_id")
@@ -415,6 +514,10 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                 raise WorkflowExecutionError("提交工作流超时")
             except Exception as e:
                 raise WorkflowExecutionError(f"提交工作流失败: {e}")
+
+    async def _submit_workflow(self, workflow_data: Dict[str, Any]) -> str:
+        """提交工作流到ComfyUI（兼容性方法）"""
+        return await self._submit_workflow_with_url(workflow_data, self.base_url)
 
     def _convert_to_comfyui_format(self, workflow_data: Dict[str, Any]) -> Dict[str, Any]:
         """将工作流转换为ComfyUI期望的格式"""
@@ -538,17 +641,17 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
         else:
             logger.debug(f"节点类型 {node_type} 使用通用widgets映射")
     
-    async def _monitor_execution(self, prompt_id: str, task_id: str) -> TaskResult:
-        """监控工作流执行"""
+    async def _monitor_execution_with_url(self, prompt_id: str, task_id: str, base_url: str, ws_url: str) -> TaskResult:
+        """监控工作流执行（指定URL）"""
         try:
-            async with websockets.connect(f"{self.ws_url}?clientId={task_id}") as websocket:
+            async with websockets.connect(f"{ws_url}?clientId={task_id}") as websocket:
                 start_time = asyncio.get_event_loop().time()
-                
+
                 while True:
                     # 检查超时
                     if asyncio.get_event_loop().time() - start_time > self.timeout:
                         raise WorkflowExecutionError("工作流执行超时")
-                    
+
                     try:
                         message = await asyncio.wait_for(websocket.recv(), timeout=10.0)
 
@@ -561,13 +664,13 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                                 continue
 
                         data = json.loads(message)
-                        
+
                         # 处理不同类型的消息
                         if data['type'] == 'executing':
                             node_id = data['data']['node']
                             if node_id is None:
                                 # 执行完成
-                                result_files = await self._get_result_files(prompt_id)
+                                result_files = await self._get_result_files_with_url(prompt_id, base_url)
                                 return TaskResult(
                                     task_id=task_id,
                                     status=TaskStatus.COMPLETED,
@@ -575,18 +678,18 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                                     message="工作流执行完成",
                                     result_data={"files": result_files}
                                 )
-                        
+
                         elif data['type'] == 'progress':
                             # 更新进度
                             progress_data = data['data']
                             progress = (progress_data['value'] / progress_data['max']) * 100
                             logger.debug(f"执行进度: {progress:.1f}%")
-                        
+
                         elif data['type'] == 'execution_error':
                             # 执行错误
                             error_data = data['data']
                             raise WorkflowExecutionError(f"工作流执行错误: {error_data}")
-                            
+
                     except asyncio.TimeoutError:
                         # WebSocket接收超时，继续等待
                         continue
@@ -598,46 +701,56 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                         # 忽略编码错误的消息
                         logger.debug(f"跳过编码错误的消息: {e}")
                         continue
-                        
+
         except Exception as e:
             logger.error(f"监控工作流执行失败: {e}")
             raise WorkflowExecutionError(f"监控工作流执行失败: {e}")
+
+    async def _monitor_execution(self, prompt_id: str, task_id: str) -> TaskResult:
+        """监控工作流执行（兼容性方法）"""
+        return await self._monitor_execution_with_url(prompt_id, task_id, self.base_url, self.ws_url)
     
-    async def _get_result_files(self, prompt_id: str) -> List[str]:
-        """获取结果文件"""
+    async def _get_result_files_with_url(self, prompt_id: str, base_url: str) -> List[str]:
+        """获取结果文件（指定URL）"""
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(f"{self.base_url}/history/{prompt_id}") as response:
+                async with session.get(f"{base_url}/history/{prompt_id}") as response:
                     if response.status == 200:
                         history = await response.json()
-                        
+
                         if prompt_id in history:
                             outputs = history[prompt_id].get('outputs', {})
                             result_files = []
-                            
+
                             for node_id, node_output in outputs.items():
                                 if 'images' in node_output:
                                     for image_info in node_output['images']:
                                         filename = image_info['filename']
                                         subfolder = image_info.get('subfolder', '')
-                                        
+
                                         # 构建完整路径
-                                        output_dir = self.comfyui_config.get('output_dir', '')
+                                        from ..utils.path_utils import get_output_dir
+                                        output_dir = get_output_dir()
+
                                         if subfolder:
                                             file_path = os.path.join(output_dir, subfolder, filename)
                                         else:
                                             file_path = os.path.join(output_dir, filename)
-                                        
+
                                         result_files.append(file_path)
-                            
+
                             return result_files
                         else:
                             raise WorkflowExecutionError(f"未找到prompt_id {prompt_id} 的历史记录")
                     else:
                         raise WorkflowExecutionError(f"获取历史记录失败: {response.status}")
-                        
+
             except Exception as e:
                 raise WorkflowExecutionError(f"获取结果文件失败: {e}")
+
+    async def _get_result_files(self, prompt_id: str) -> List[str]:
+        """获取结果文件（兼容性方法）"""
+        return await self._get_result_files_with_url(prompt_id, self.base_url)
     
     def get_supported_task_types(self) -> List[TaskType]:
         """获取支持的任务类型"""
