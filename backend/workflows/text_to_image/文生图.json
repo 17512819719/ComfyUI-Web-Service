@@ -115,7 +115,7 @@
       "to_translate": "en",
       "manual_translate": false,
       "Manual Trasnlate": "Manual Trasnlate",
-      "text": "鸡",
+      "text": "",
       "speak_and_recognation": {
         "__value__": [
           false,
@@ -131,7 +131,7 @@
   "317": {
     "inputs": {
       "postive_prompt": "",
-      "base_negative": "text, watermark",
+      "base_negative": "text, watermark, nsfw",
       "enhancenegative": 1,
       "insanitylevel": 0,
       "base_model": "SD1.5",
