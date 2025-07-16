@@ -54,38 +54,26 @@ def get_status_manager():
 def convert_file_path_to_url(file_path: str) -> str:
     """将文件路径转换为静态文件URL"""
     import os
+    import re
 
-    # 获取项目根目录
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-
-    # 尝试不同的路径匹配
-    if file_path.startswith(project_root):
-        # 如果是项目内的路径
-        relative_path = os.path.relpath(file_path, project_root)
-
-        # 检查是否在backend/outputs目录
-        if relative_path.startswith('backend' + os.sep + 'outputs'):
-            # 移除backend前缀
-            url_path = relative_path.replace('backend' + os.sep + 'outputs', 'outputs')
-            return '/' + url_path.replace(os.sep, '/')
-
-        # 检查是否在ComfyUI/output目录
-        elif 'ComfyUI' + os.sep + 'output' in relative_path:
-            # 提取ComfyUI/output之后的路径
-            comfyui_index = relative_path.find('ComfyUI' + os.sep + 'output')
-            if comfyui_index != -1:
-                url_path = relative_path[comfyui_index + len('ComfyUI' + os.sep + 'output'):].lstrip(os.sep)
-                return '/comfyui-output/' + url_path.replace(os.sep, '/')
-
-    # 如果是绝对路径，尝试检查是否在ComfyUI目录
-    if 'ComfyUI' in file_path and 'output' in file_path:
-        # 提取output目录之后的路径
-        output_index = file_path.rfind('output')
-        if output_index != -1:
-            url_path = file_path[output_index + 6:].lstrip(os.sep)  # 6 = len('output')
-            return '/comfyui-output/' + url_path.replace(os.sep, '/')
-
-    # 默认返回None（使用下载接口作为兜底）
+    # 标准化路径分隔符
+    file_path = file_path.replace('\\', '/')
+    
+    # 尝试匹配outputs目录
+    if 'outputs/' in file_path or 'outputs\\' in file_path:
+        # 使用正则表达式匹配最后一个outputs之后的路径
+        match = re.search(r'outputs[/\\]([^/\\].*)$', file_path)
+        if match:
+            return f"/outputs/{match.group(1)}"
+    
+    # 尝试匹配ComfyUI output目录
+    if 'output/' in file_path or 'output\\' in file_path:
+        # 使用正则表达式匹配最后一个output之后的路径
+        match = re.search(r'output[/\\]([^/\\].*)$', file_path)
+        if match:
+            return f"/comfyui-output/{match.group(1)}"
+    
+    # 如果都不匹配，返回None（使用下载接口作为兜底）
     return None
 
 

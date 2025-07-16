@@ -96,6 +96,66 @@
       </el-table-column>
     </el-table>
 
+    <!-- 结果查看对话框 -->
+    <el-dialog
+      title="任务结果"
+      :visible.sync="resultDialog.visible"
+      width="80%"
+      class="result-dialog"
+      @close="closeResultDialog">
+      <div v-if="resultDialog.task" class="result-content">
+        <!-- 任务信息 -->
+        <div class="task-info">
+          <div class="info-item">
+            <span class="label">任务ID:</span>
+            <span class="value">{{ resultDialog.task.task_id }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">创建时间:</span>
+            <span class="value">{{ formatTime(resultDialog.task.created_at) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">完成时间:</span>
+            <span class="value">{{ formatTime(resultDialog.task.updated_at) }}</span>
+          </div>
+        </div>
+
+        <!-- 提示词信息 -->
+        <div class="prompt-info" v-if="resultDialog.task.prompt || resultDialog.task.negative_prompt">
+          <div v-if="resultDialog.task.prompt" class="info-item">
+            <span class="label">正向提示词:</span>
+            <span class="value">{{ resultDialog.task.prompt }}</span>
+          </div>
+          <div v-if="resultDialog.task.negative_prompt" class="info-item">
+            <span class="label">反向提示词:</span>
+            <span class="value">{{ resultDialog.task.negative_prompt }}</span>
+          </div>
+        </div>
+
+        <!-- 结果图片 -->
+        <div class="result-images" v-if="resultDialog.task.result_data && resultDialog.task.result_data.files">
+          <div class="image-grid">
+            <div v-for="(file, index) in resultDialog.task.result_data.files" :key="index" class="image-item">
+              <img :src="getImageUrl(file)" :alt="'结果图片 ' + (index + 1)" @click="previewImage(file)" />
+              <div class="image-actions">
+                <el-button type="text" size="small" @click="downloadImage(file, index)">
+                  <i class="el-icon-download"></i> 下载
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 图片预览 -->
+    <el-image-viewer
+      v-if="previewVisible"
+      :url-list="previewUrls"
+      :initial-index="previewIndex"
+      @close="closePreview"
+    />
+
     <!-- 分页 -->
     <div class="tasks-pagination">
       <el-pagination
@@ -128,7 +188,14 @@ export default {
         page: 1,
         size: 20,
         total: 0
-      }
+      },
+      resultDialog: {
+        visible: false,
+        task: null
+      },
+      previewVisible: false,
+      previewUrls: [],
+      previewIndex: 0
     }
   },
   mounted() {
@@ -205,9 +272,66 @@ export default {
     },
 
     viewResult(task) {
-      // 这里可以打开结果查看对话框或跳转到结果页面
-      console.log('查看任务结果:', task)
-      this.$message.info('结果查看功能开发中...')
+      this.resultDialog.task = task
+      this.resultDialog.visible = true
+
+      // 准备预览URL列表
+      if (task.result_data && task.result_data.files) {
+        this.previewUrls = task.result_data.files.map(file => this.getImageUrl(file))
+      }
+    },
+
+    closeResultDialog() {
+      this.resultDialog.visible = false
+      this.resultDialog.task = null
+    },
+
+    getImageUrl(file) {
+      // 如果是完整URL，直接返回
+      if (file.startsWith('http://') || file.startsWith('https://')) {
+        return file
+      }
+      
+      // 如果是相对路径，拼接baseURL
+      const baseURL = api.defaults.baseURL
+      if (file.startsWith('/')) {
+        return baseURL + file
+      }
+      
+      // 否则假设是输出目录的文件
+      return `${baseURL}/outputs/${file}`
+    },
+
+    previewImage(file) {
+      const index = this.resultDialog.task.result_data.files.indexOf(file)
+      this.previewIndex = Math.max(0, index)
+      this.previewVisible = true
+    },
+
+    closePreview() {
+      this.previewVisible = false
+    },
+
+    async downloadImage(file, index) {
+      try {
+        const taskId = this.resultDialog.task.task_id
+        const response = await api.get(`/api/v2/tasks/${taskId}/download?index=${index}`, {
+          responseType: 'blob'
+        })
+        
+        // 创建下载链接
+        const url = window.URL.createObjectURL(new Blob([response.data]))
+        const link = document.createElement('a')
+        link.href = url
+        link.setAttribute('download', file.split('/').pop()) // 使用原始文件名
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        window.URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('下载失败:', error)
+        this.$message.error('下载失败: ' + (error.response?.data?.detail || error.message))
+      }
     },
 
     getTaskTypeLabel(type) {
@@ -284,5 +408,97 @@ export default {
 .tasks-pagination {
   margin-top: 20px;
   text-align: right;
+}
+
+.result-dialog {
+  .result-content {
+    padding: 20px;
+  }
+
+  .task-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+
+  .prompt-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+
+  .info-item {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+
+    .label {
+      font-weight: bold;
+      color: #606266;
+      width: 100px;
+      flex-shrink: 0;
+    }
+
+    .value {
+      color: #333;
+      word-break: break-all;
+    }
+  }
+
+  .result-images {
+    margin-top: 20px;
+  }
+
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .image-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+
+    img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      cursor: pointer;
+      transition: transform 0.3s;
+
+      &:hover {
+        transform: scale(1.05);
+      }
+    }
+
+    .image-actions {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 8px;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+
+      .el-button {
+        color: white;
+        &:hover {
+          color: #409EFF;
+        }
+      }
+    }
+
+    &:hover .image-actions {
+      opacity: 1;
+    }
+  }
 }
 </style>

@@ -242,28 +242,24 @@ app.add_middleware(
 
 # 静态文件服务
 import os
-client_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'Client')
-if os.path.exists(client_dir):
-    app.mount("/Client", StaticFiles(directory=client_dir), name="client")
-    logger.info(f"静态文件服务已挂载: /Client -> {client_dir}")
-else:
-    logger.warning(f"客户端目录不存在: {client_dir}")
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 # 挂载outputs目录用于图片访问
 outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs')
 if os.path.exists(outputs_dir):
-    app.mount("/outputs", StaticFiles(directory=outputs_dir), name="outputs")
+    app.mount("/outputs", StaticFiles(directory=outputs_dir, check_dir=True, html=True), name="outputs")
     logger.info(f"输出文件服务已挂载: /outputs -> {outputs_dir}")
 else:
-    logger.warning(f"输出目录不存在: {outputs_dir}")
+    os.makedirs(outputs_dir, exist_ok=True)
+    app.mount("/outputs", StaticFiles(directory=outputs_dir, check_dir=True, html=True), name="outputs")
+    logger.info(f"输出目录已创建并挂载: /outputs -> {outputs_dir}")
 
 # 挂载ComfyUI的output目录（如果存在）
 comfyui_output_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ComfyUI', 'output')
 if os.path.exists(comfyui_output_dir):
-    app.mount("/comfyui-output", StaticFiles(directory=comfyui_output_dir), name="comfyui_output")
+    app.mount("/comfyui-output", StaticFiles(directory=comfyui_output_dir, check_dir=True, html=True), name="comfyui_output")
     logger.info(f"ComfyUI输出文件服务已挂载: /comfyui-output -> {comfyui_output_dir}")
-else:
-    logger.warning(f"ComfyUI输出目录不存在: {comfyui_output_dir}")
 
 # 导入新的异常处理模块
 try:

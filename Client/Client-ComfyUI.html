@@ -6,8 +6,14 @@
     <title>ComfyUI Studio</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
+            --primary: #10b981;
+            --success: #10b981;
+            --error: #dc2626;
+            --warning: #f59e0b;
+            --info: #3b82f6;
             --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
             --secondary-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
             --surface-1: rgba(15, 23, 42, 0.8);
@@ -20,9 +26,6 @@
             --text-muted: #64748b;
             --accent: #6366f1;
             --accent-hover: #4f46e5;
-            --success: #10b981;
-            --error: #ef4444;
-            --warning: #f59e0b;
         }
 
         * {
@@ -368,13 +371,143 @@
         .status-queued { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
         .status-failed { background: rgba(239, 68, 68, 0.2); color: var(--error); }
 
-        /* 批次图片网格 - 4张图片平铺 */
+        /* 批次图片网格 */
         .batch-images {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 16px;
             width: 100%;
-            height: 300px;
+        }
+
+        .batch-image-item {
+            position: relative;
+            background: var(--surface-1);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            aspect-ratio: 1;
+            cursor: pointer;
+        }
+
+        .batch-image-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .batch-image-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .batch-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .batch-image-actions {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+            z-index: 2;
+        }
+
+        .batch-image-action {
+            background: rgba(0, 0, 0, 0.7);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .batch-image-action:hover {
+            background: var(--primary);
+            transform: scale(1.1);
+        }
+
+        .batch-image-index {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 2;
+        }
+
+        /* 图片预览模态框 */
+        .image-preview-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .image-preview-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .image-preview-content {
+            max-width: 90%;
+            max-height: 90vh;
+            position: relative;
+        }
+
+        .image-preview-content img {
+            max-width: 100%;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+
+        .image-preview-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .image-preview-close:hover {
+            color: var(--primary);
+        }
+
+        /* 移除重复的样式 */
+        .gallery-item,
+        .gallery-image,
+        .image-row,
+        .image-item,
+        .image-index,
+        .image-download-btn {
+            display: none;
         }
 
         .batch-images .gallery-item {
@@ -1268,6 +1401,211 @@
             .controls-panel {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* 批次图片占位符 */
+        .batch-image-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface-2);
+            color: var(--text-muted);
+            font-size: 24px;
+        }
+
+        .batch-image-placeholder .loading {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--surface-3);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        .batch-image-placeholder .progress {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .batch-image-placeholder i {
+            font-size: 32px;
+            opacity: 0.5;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 空状态样式 */
+        .gallery-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+            background: var(--surface-1);
+            border-radius: 24px;
+            border: 1px solid var(--border-1);
+        }
+
+        .gallery-empty i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .gallery-empty h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .gallery-empty p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* 提示词详情样式 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: var(--surface-1);
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .modal-close:hover {
+            background: var(--surface-2);
+            color: var(--text-primary);
+        }
+        
+        .prompt-section {
+            margin-bottom: 20px;
+        }
+        
+        .prompt-section h4 {
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .prompt-section p {
+            color: var(--text-primary);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .btn-text {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-text:hover {
+            color: var(--text-primary);
+            background: var(--surface-2);
+            border-radius: 6px;
+        }
+
+        .error-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--error);
+            gap: 8px;
+        }
+
+        .error-placeholder i {
+            font-size: 24px;
+        }
+
+        .error-placeholder span {
+            font-size: 14px;
+        }
+
+        .batch-image-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 100%;
+            overflow: hidden;
+            border-radius: 12px;
+            background: var(--surface-2);
+        }
+
+        .batch-image-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .error-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--error);
+            gap: 8px;
+            background: var(--surface-2);
+            border-radius: 12px;
+        }
+
+        .error-placeholder i {
+            font-size: 24px;
+        }
+
+        .error-placeholder span {
+            font-size: 14px;
         }
     </style>
 </head>
@@ -2326,40 +2664,176 @@
 
         // 更新画廊显示
         function updateGallery() {
-            const gallery = document.getElementById('galleryGrid');
-            gallery.innerHTML = '';
+            const galleryGrid = document.querySelector('.gallery-grid');
+            if (!galleryGrid) return;
 
-            // 按时间倒序排列任务
-            const sortedTasks = [...tasks].sort((a, b) => new Date(b.created_at || Date.now()) - new Date(a.created_at || Date.now()));
+            // 清空现有内容
+            galleryGrid.innerHTML = '';
 
-            if (sortedTasks.length === 0) {
-                // 显示空状态
+            // 如果没有任务，显示空状态
+            if (tasks.length === 0) {
                 const emptyState = document.createElement('div');
-                emptyState.style.cssText = `
-                    text-align: center;
-                    padding: 60px 20px;
-                    color: var(--text-muted);
-                `;
+                emptyState.className = 'gallery-empty';
                 emptyState.innerHTML = `
-                    <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">
-                        <i class="fas fa-image"></i>
-                    </div>
-                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary);">
-                        还没有生成任何图片
-                    </h3>
-                    <p style="font-size: 14px; opacity: 0.8;">
-                        在下方输入提示词开始创作吧！
-                    </p>
+                    <i class="fas fa-image"></i>
+                    <h3>还没有生成任何图片</h3>
+                    <p>在下方输入提示词开始创作吧！</p>
                 `;
-                gallery.appendChild(emptyState);
+                galleryGrid.appendChild(emptyState);
                 return;
             }
 
-            if (isBatchView) {
-                displayBatchView(sortedTasks, gallery);
-            } else {
-                displayGridView(sortedTasks, gallery);
-            }
+            // 按批次分组任务
+            const tasksByBatch = {};
+            tasks.forEach(task => {
+                const batchId = task.batch_id || `single_${task.id}`;
+                if (!tasksByBatch[batchId]) {
+                    tasksByBatch[batchId] = [];
+                }
+                tasksByBatch[batchId].push(task);
+            });
+
+            // 为每个批次创建展示区域
+            Object.entries(tasksByBatch).forEach(([batchId, batchTasks]) => {
+                const task = batchTasks[0]; // 使用批次中的第一个任务作为代表
+                
+                const batchContainer = document.createElement('div');
+                batchContainer.className = 'batch-container';
+                
+                // 批次头部信息
+                const batchHeader = document.createElement('div');
+                batchHeader.className = 'batch-header';
+                batchHeader.innerHTML = `
+                    <div class="batch-info">
+                        <div class="batch-meta">
+                            <span>${formatDate(task.created_at)}</span>
+                            <span>${task.width}x${task.height}</span>
+                            <span class="batch-status status-${task.status}">${getStatusText(task.status)}</span>
+                            <button class="btn btn-text" onclick="showPromptDetails('${escapeHtml(task.prompt || '')}', '${escapeHtml(task.negative_prompt || '')}')">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${task.status === 'completed' ? `
+                    <div class="batch-actions">
+                        <button class="btn btn-secondary" onclick="downloadAllImages('${task.id}')">
+                            <i class="fas fa-download"></i>
+                            全部下载
+                        </button>
+                    </div>
+                    ` : ''}
+                `;
+
+                // 批次图片网格
+                const batchImages = document.createElement('div');
+                batchImages.className = 'batch-images';
+
+                // 如果任务完成，显示结果图片
+                if (task.status === 'completed' && task.resultUrls) {
+                    task.resultUrls.forEach((url, index) => {
+                        const imageItem = document.createElement('div');
+                        imageItem.className = 'batch-image-item';
+                        imageItem.dataset.taskId = task.id;
+                        imageItem.dataset.imageIndex = index;
+                        
+                        // 构建下载URL
+                        const downloadUrl = `${API_BASE}/v2/tasks/${task.id}/download?index=${index}`;
+                        
+                        imageItem.innerHTML = `
+                            <div class="batch-image-container" onclick="showImagePreview('${downloadUrl}')">
+                                <img src="${downloadUrl}" 
+                                     alt="生成结果 ${index + 1}" 
+                                     loading="lazy" 
+                                     style="opacity: 0; transition: opacity 0.3s ease;"
+                                     onload="this.style.opacity = '1';"
+                                     onerror="handleImageError(this)">
+                                <div class="batch-image-index">#${index + 1}</div>
+                                <div class="batch-image-actions">
+                                    <button class="batch-image-action" onclick="event.stopPropagation(); downloadImage('${task.id}', ${index})">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <button class="batch-image-action" onclick="event.stopPropagation(); handleImageToVideo('${task.id}', ${index})">
+                                        <i class="fas fa-film"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // 添加认证头部到图片请求
+                        const img = imageItem.querySelector('img');
+                        fetch(downloadUrl, {
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`
+                            }
+                        })
+                        .then(response => response.blob())
+                        .then(blob => {
+                            const objectUrl = URL.createObjectURL(blob);
+                            img.src = objectUrl;
+                            img.onload = () => {
+                                img.style.opacity = '1';
+                                URL.revokeObjectURL(objectUrl);
+                            };
+                        })
+                        .catch(error => {
+                            console.error('加载图片失败:', error);
+                            handleImageError(img);
+                        });
+                        
+                        batchImages.appendChild(imageItem);
+                    });
+                } else {
+                    // 显示占位符或进度
+                    for (let i = 0; i < 4; i++) {
+                        const imageItem = document.createElement('div');
+                        imageItem.className = 'batch-image-item';
+                        imageItem.innerHTML = `
+                            <div class="batch-image-container">
+                                <div class="batch-image-placeholder">
+                                    ${task.status === 'processing' ? `
+                                        <div class="loading"></div>
+                                        <div class="progress">${Math.round(task.progress)}%</div>
+                                    ` : '<i class="fas fa-image"></i>'}
+                                </div>
+                                <div class="batch-image-index">#${i + 1}</div>
+                            </div>
+                        `;
+                        batchImages.appendChild(imageItem);
+                    }
+                }
+
+                batchContainer.appendChild(batchHeader);
+                batchContainer.appendChild(batchImages);
+                galleryGrid.appendChild(batchContainer);
+            });
+        }
+
+        // 辅助函数：HTML转义
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // 辅助函数：格式化日期
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return `${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+
+        // 辅助函数：获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'queued': '排队中',
+                'processing': '生成中',
+                'completed': '已完成',
+                'failed': '失败',
+                'cancelled': '已取消'
+            };
+            return statusMap[status] || status;
         }
 
         // 批次视图显示
@@ -2521,19 +2995,17 @@
                 mainTask.resultUrls.slice(0, 4).forEach((url, index) => {
                     const imageDiv = document.createElement('div');
                     imageDiv.className = 'batch-image-item';
+                    const downloadUrl = `${API_BASE}/v2/tasks/${mainTask.id}/download?index=${index}`;
                     imageDiv.innerHTML = `
-                        <div class="batch-image-container" onclick="showImageModal('${url}', '${mainTask.prompt || ''}', ${index}, '${mainTask.negative_prompt || ''}')">
-                            <img src="${url}" alt="Generated Image ${index + 1}"
-                                  onload="this.style.opacity=1"
-                                  onerror="handleImageError(this, '${mainTask.id}', ${index})"
-                                  style="opacity: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s ease;">
-                            <button class="image-video-btn" onclick="event.stopPropagation(); switchToVideoMode('${url}', '${mainTask.prompt}')" title="生成视频">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <div class="batch-image-overlay">
-                                <div class="batch-image-index">${index + 1}</div>
-                                <button class="batch-image-download" onclick="event.stopPropagation(); downloadSingleImage('${mainTask.id}', ${index})" title="下载图片 ${index + 1}">
+                        <div class="batch-image-container" onclick="showImagePreview('${downloadUrl}')">
+                            <img src="${downloadUrl}" alt="Generated Image ${index + 1}" loading="lazy" onerror="handleImageError(this)">
+                            <div class="batch-image-index">#${index + 1}</div>
+                            <div class="batch-image-actions">
+                                <button class="batch-image-action" onclick="event.stopPropagation(); downloadImage('${mainTask.id}', ${index})">
                                     <i class="fas fa-download"></i>
+                                </button>
+                                <button class="batch-image-action" onclick="event.stopPropagation(); handleImageToVideo('${mainTask.id}', ${index})">
+                                    <i class="fas fa-film"></i>
                                 </button>
                             </div>
                         </div>
@@ -2599,21 +3071,16 @@
                 const resultUrls = task.resultUrls || [imageUrl];
 
                 // 创建4张图片的水平布局
-                const imageRow = resultUrls.slice(0, 4).map((url, index) =>
-                    `<div class="image-item" onclick="showImageModal('${url}', '${prompt}', ${index}, '${task.negative_prompt || ''}')">
-                        <img src="${url}" alt="Generated Image ${index + 1}"
-                              onload="this.style.opacity=1"
-                              onerror="handleImageError(this, '${task.id}', ${index})"
-                              style="opacity: 0;">
-                        <button class="image-video-btn" onclick="event.stopPropagation(); switchToVideoMode('${url}', '${prompt}')" title="生成视频">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        <div class="image-index">${index + 1}</div>
-                        <button class="image-download-btn" onclick="event.stopPropagation(); downloadSingleImage('${task.id}', ${index})" title="下载图片 ${index + 1}">
+                const imageRow = resultUrls.slice(0, 4).map((url, index) => {
+                    const downloadUrl = `${API_BASE}/v2/tasks/${task.id}/download?index=${index}`;
+                    return `<div class="image-item" onclick="showImagePreview('${downloadUrl}')">
+                        <img src="${downloadUrl}" alt="Generated Image ${index + 1}" loading="lazy" onerror="handleImageError(this)">
+                        <div class="image-index">#${index + 1}</div>
+                        <button class="image-download-btn" onclick="event.stopPropagation(); downloadImage('${task.id}', ${index})">
                             <i class="fas fa-download"></i>
                         </button>
-                    </div>`
-                ).join('');
+                    </div>`;
+                }).join('');
 
                 imageContent = `<div class="image-row">${imageRow}</div>`;
 
@@ -2652,7 +3119,7 @@
             if (status === 'completed' && imageUrl) {
                 div.addEventListener('click', (e) => {
                     if (!e.target.closest('button') && !e.target.closest('.image-item')) {
-                        showImageModal(imageUrl, prompt, 0, task.negative_prompt || '');
+                        showImagePreview(imageUrl);
                     }
                 });
             }
@@ -2660,154 +3127,29 @@
             return div;
         }
 
-        // 获取状态文本
-        function getStatusText(status) {
-            const statusMap = {
-                'queued': '排队中',
-                'processing': '生成中',
-                'completed': '已完成',
-                'failed': '失败'
-            };
-            return statusMap[status] || status;
-        }
-
-
-
         // 处理图片加载错误
-        async function handleImageError(imgElement, taskId, imageIndex = 0) {
-            console.log(`图片加载失败，尝试使用认证方式加载: ${taskId}, 图片索引: ${imageIndex}`);
-
-            try {
-                // 先尝试获取任务详情，确保我们有最新的任务信息
-                const taskResponse = await fetch(`${API_BASE}/v2/tasks/${taskId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (taskResponse.ok) {
-                    const taskData = await taskResponse.json();
-                    if (taskData.resultUrls && taskData.resultUrls.length > imageIndex) {
-                        // 如果任务有resultUrls字段，直接使用
-                        const imageUrl = taskData.resultUrls[imageIndex];
-                        console.log(`使用任务中的URL: ${imageUrl}`);
-                        imgElement.src = imageUrl;
-                        return;
-                    }
-                }
-
-                // 如果获取任务详情失败或没有resultUrls，使用下载API
-                const url = imageIndex > 0 ?
-                    `${API_BASE}/v2/tasks/${taskId}/download?index=${imageIndex}` :
-                    `${API_BASE}/v2/tasks/${taskId}/download`;
-
-                console.log(`使用下载API: ${url}`);
-                const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const imageUrl = URL.createObjectURL(blob);
-                    imgElement.src = imageUrl;
-                    imgElement.onload = function() {
-                        this.style.opacity = 1;
-                        // 清理blob URL
-                        setTimeout(() => URL.revokeObjectURL(imageUrl), 5000);
-                    };
-                } else {
-                    console.error(`认证图片加载也失败: ${response.status}, 图片索引: ${imageIndex}`);
-                    imgElement.style.opacity = 1;
-                    imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
-                }
-            } catch (error) {
-                console.error('图片加载错误:', error);
-                imgElement.style.opacity = 1;
-                imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
-            }
-        }
-
-        // 显示图片模态框（支持多张图片）
-        function showImageModal(imageUrl, prompt, imageIndex = 0, negativePrompt = '') {
-            try {
-                const modal = document.createElement('div');
-                modal.className = 'image-modal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0, 0, 0, 0.9);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    z-index: 1000;
-                    cursor: pointer;
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
+        function handleImageError(img) {
+            console.error('图片加载失败:', img.src);
+            
+            const container = img.parentElement;
+            
+            // 显示错误占位符
+            img.style.display = 'none';
+            if (!container.querySelector('.error-placeholder')) {
+                const errorPlaceholder = document.createElement('div');
+                errorPlaceholder.className = 'error-placeholder';
+                errorPlaceholder.innerHTML = `
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>加载失败</span>
                 `;
-
-                const closeModal = () => {
-                    modal.style.opacity = '0';
-                    setTimeout(() => {
-                        if (document.body.contains(modal)) {
-                            document.body.removeChild(modal);
-                        }
-                        document.removeEventListener('keydown', handleEsc);
-                    }, 300);
-                };
-
-                const handleEsc = (e) => {
-                    if (e.key === 'Escape') {
-                        closeModal();
-                    }
-                };
-
-                modal.onclick = closeModal;
-                document.addEventListener('keydown', handleEsc);
-
-                modal.innerHTML = `
-                    <div style="max-width: 90vw; max-height: 90vh; position: relative; display: flex; flex-direction: column; align-items: center;" onclick="event.stopPropagation()">
-                        <img src="${imageUrl}"
-                             alt="Generated Image ${imageIndex + 1}"
-                             style="max-width: 100%; max-height: calc(90vh - 60px); object-fit: contain; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);"
-                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WKoOi9veWksei0pTwvdGV4dD48L3N2Zz4='">
-                        <div style="margin-top: 16px; color: white; text-align: center; font-size: 14px; max-width: 600px; line-height: 1.4;">
-                            <div style="font-weight: 500; margin-bottom: 8px;">图片 ${imageIndex + 1}</div>
-                            ${prompt ? `<div style="color: rgba(255,255,255,0.9); margin-bottom: 6px;"><strong>正向提示词:</strong> ${prompt}</div>` : ''}
-                            ${negativePrompt ? `<div style="color: rgba(255,255,255,0.7);"><strong>反向提示词:</strong> ${negativePrompt}</div>` : ''}
-                            ${!prompt && !negativePrompt ? '<div style="color: rgba(255,255,255,0.8);">无描述</div>' : ''}
-                        </div>
-                        <button onclick="closeModal()" style="position: absolute; top: -40px; right: 0; background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;">
-                            ×
-                        </button>
-                    </div>
-                `;
-
-                document.body.appendChild(modal);
-
-                // 触发动画
-                setTimeout(() => {
-                    modal.style.opacity = '1';
-                }, 10);
-
-            } catch (error) {
-                console.error('显示图片模态框时出错:', error);
-                alert('无法显示图片');
+                container.appendChild(errorPlaceholder);
             }
         }
 
         // 下载单张图片
-        async function downloadSingleImage(taskId, imageIndex) {
+        async function downloadImage(taskId, index) {
             try {
-                const url = imageIndex > 0 ?
-                    `${API_BASE}/v2/tasks/${taskId}/download?index=${imageIndex}` :
-                    `${API_BASE}/v2/tasks/${taskId}/download`;
-
-                const response = await fetch(url, {
+                const response = await fetch(`${API_BASE}/v2/tasks/${taskId}/download?index=${index}`, {
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
@@ -2815,21 +3157,22 @@
 
                 if (response.ok) {
                     const blob = await response.blob();
-                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = `image_${taskId}_${imageIndex + 1}.png`;
+                    a.href = url;
+                    a.download = `image_${taskId}_${index}.png`;
                     document.body.appendChild(a);
                     a.click();
+                    window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    window.URL.revokeObjectURL(downloadUrl);
-                    showSuccess(`图片 ${imageIndex + 1} 下载完成`);
+                    showSuccess('图片下载完成');
                 } else {
-                    alert(`下载图片 ${imageIndex + 1} 失败`);
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '下载失败');
                 }
             } catch (error) {
-                console.error('下载错误:', error);
-                alert(`下载图片 ${imageIndex + 1} 错误: ${error.message}`);
+                console.error('下载图片失败:', error);
+                showError('下载失败: ' + error.message);
             }
         }
 
@@ -2837,107 +3180,92 @@
         async function downloadAllImages(taskId) {
             try {
                 const task = tasks.find(t => t.id === taskId);
-                const fileCount = task?.fileCount || 4; // 固定4张
+                if (!task || !task.resultUrls || task.resultUrls.length === 0) {
+                    throw new Error('未找到可下载的图片');
+                }
 
-                for (let i = 0; i < fileCount; i++) {
-                    const url = i > 0 ?
-                        `${API_BASE}/v2/tasks/${taskId}/download?index=${i}` :
-                        `${API_BASE}/v2/tasks/${taskId}/download`;
+                // 创建一个zip文件
+                const zip = new JSZip();
+                const promises = [];
 
-                    const response = await fetch(url, {
+                // 下载每张图片并添加到zip
+                for (let i = 0; i < task.resultUrls.length; i++) {
+                    const promise = fetch(`${API_BASE}/v2/tasks/${taskId}/download?index=${i}`, {
                         headers: {
                             'Authorization': `Bearer ${authToken}`
                         }
+                    })
+                    .then(response => response.blob())
+                    .then(blob => {
+                        zip.file(`image_${taskId}_${i}.png`, blob);
                     });
-
-                    if (response.ok) {
-                        const blob = await response.blob();
-                        const downloadUrl = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = downloadUrl;
-                        a.download = `image_${taskId}_${i + 1}.png`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(downloadUrl);
-
-                        // 添加延迟避免浏览器阻止多个下载
-                        if (i < fileCount - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
-                    }
+                    promises.push(promise);
                 }
-                showSuccess(`已下载全部 ${fileCount} 张图片`);
+
+                // 等待所有图片下载完成
+                await Promise.all(promises);
+
+                // 生成并下载zip文件
+                const zipBlob = await zip.generateAsync({type: 'blob'});
+                const url = window.URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `images_${taskId}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                showSuccess('所有图片已打包下载');
             } catch (error) {
-                console.error('批量下载错误:', error);
-                alert('批量下载错误: ' + error.message);
+                console.error('下载所有图片失败:', error);
+                showError('下载失败: ' + error.message);
             }
         }
 
-        // 下载任务结果（保持兼容性）
-        async function downloadTask(taskId) {
-            try {
-                const task = tasks.find(t => t.id === taskId);
-                const fileCount = task?.fileCount || 1;
-
-                if (fileCount > 1) {
-                    // 多张图片：依次下载所有图片
-                    for (let i = 0; i < fileCount; i++) {
-                        const url = i > 0 ?
-                            `${API_BASE}/v2/tasks/${taskId}/download?index=${i}` :
-                            `${API_BASE}/v2/tasks/${taskId}/download`;
-
-                        const response = await fetch(url, {
-                            headers: {
-                                'Authorization': `Bearer ${authToken}`
-                            }
-                        });
-
-                        if (response.ok) {
-                            const blob = await response.blob();
-                            const downloadUrl = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = downloadUrl;
-                            a.download = `result_${taskId}_${i + 1}.png`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            window.URL.revokeObjectURL(downloadUrl);
-
-                            // 添加延迟避免浏览器阻止多个下载
-                            if (i < fileCount - 1) {
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                            }
-                        }
-                    }
-                    showSuccess(`已下载 ${fileCount} 张图片`);
-                } else {
-                    // 单张图片：原有下载方式
-                    const response = await fetch(`${API_BASE}/v2/tasks/${taskId}/download`, {
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        const blob = await response.blob();
-                        const downloadUrl = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = downloadUrl;
-                        a.download = `result_${taskId}.png`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(downloadUrl);
-                        showSuccess('图片下载完成');
-                    } else {
-                        alert('下载失败');
-                    }
+        // 图片预览功能
+        function showImagePreview(url) {
+            const modal = document.createElement('div');
+            modal.className = 'image-preview-modal';
+            modal.innerHTML = `
+                <div class="image-preview-content">
+                    <button class="image-preview-close" onclick="closeImagePreview(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <img src="" alt="预览图片" style="opacity: 0; transition: opacity 0.3s ease;">
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // 使用 fetch 加载图片
+            fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
                 }
-            } catch (error) {
-                console.error('下载错误:', error);
-                alert('下载错误: ' + error.message);
-            }
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const objectUrl = URL.createObjectURL(blob);
+                const img = modal.querySelector('img');
+                img.src = objectUrl;
+                img.onload = () => {
+                    img.style.opacity = '1';
+                    // 使用 requestAnimationFrame 确保过渡动画生效
+                    requestAnimationFrame(() => modal.classList.add('active'));
+                };
+            })
+            .catch(error => {
+                console.error('加载预览图片失败:', error);
+                modal.remove();
+                showError('加载图片失败');
+            });
+        }
+
+        // 关闭图片预览
+        function closeImagePreview(button) {
+            const modal = button.closest('.image-preview-modal');
+            modal.classList.remove('active');
+            modal.addEventListener('transitionend', () => modal.remove());
         }
 
         // 显示成功消息
@@ -2955,6 +3283,32 @@
                 z-index: 1000;
                 animation: slideIn 0.3s ease;
                 box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                if (document.body.contains(toast)) {
+                    document.body.removeChild(toast);
+                }
+            }, 3000);
+        }
+
+        // 显示错误消息
+        function showError(message) {
+            // 创建临时提示
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--error);
+                color: white;
+                padding: 15px 20px;
+                border-radius: 12px;
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+                box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
             `;
             toast.textContent = message;
             document.body.appendChild(toast);
@@ -3121,20 +3475,6 @@
             }
         }
 
-        // 显示图片预览
-        function showImagePreview(imagePath) {
-            const uploadArea = document.getElementById('imageUploadArea');
-            const uploadPreview = document.getElementById('uploadedImagePreview');
-            const previewImage = document.getElementById('previewImage');
-
-            // 隐藏上传区域，显示预览
-            uploadArea.style.display = 'none';
-            uploadPreview.style.display = 'block';
-
-            // 设置预览图片
-            previewImage.src = `${API_BASE}/v2/uploads/${imagePath}`;
-        }
-
         // 移除上传的图片
         function removeUploadedImage() {
             uploadedImageData = null;
@@ -3201,6 +3541,167 @@
                 showError('切换到视频模式失败: ' + error.message);
             }
         }
+
+        // 处理图生视频
+        async function handleImageToVideo(taskId, imageIndex) {
+            try {
+                // 获取原始图片
+                const response = await fetch(`${API_BASE}/api/v2/tasks/${taskId}/download?index=${imageIndex}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('获取原始图片失败');
+                }
+
+                const blob = await response.blob();
+                const file = new File([blob], `source_${taskId}_${imageIndex}.png`, { type: 'image/png' });
+
+                // 切换到图生视频模式
+                const modeSelect = document.getElementById('creationModeSelect');
+                modeSelect.value = 'image-to-video';
+                handleModeChange();
+
+                // 显示图片预览
+                const uploadArea = document.getElementById('imageUploadArea');
+                const uploadPreview = document.getElementById('uploadedImagePreview');
+                const previewImage = document.getElementById('previewImage');
+
+                // 隐藏上传区域，显示预览
+                uploadArea.style.display = 'none';
+                uploadPreview.style.display = 'block';
+
+                // 设置预览图片
+                const imageUrl = URL.createObjectURL(blob);
+                previewImage.src = imageUrl;
+
+                // 滚动到表单区域
+                document.getElementById('textToImageForm').scrollIntoView({ behavior: 'smooth' });
+
+                showSuccess('已切换到图生视频模式');
+            } catch (error) {
+                console.error('切换到图生视频模式失败:', error);
+                showError('切换失败: ' + error.message);
+            }
+        }
+
+        // 显示提示词详情
+        function showPromptDetails(prompt, negativePrompt) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>提示词详情</h3>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="prompt-section">
+                            <h4>正向提示词</h4>
+                            <p>${prompt || '无'}</p>
+                        </div>
+                        <div class="prompt-section">
+                            <h4>反向提示词</h4>
+                            <p>${negativePrompt || '无'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // 添加点击外部关闭功能
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // 添加相关样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            }
+            
+            .modal-content {
+                background: var(--surface-1);
+                border-radius: 12px;
+                padding: 20px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            
+            .modal-close {
+                background: none;
+                border: none;
+                color: var(--text-secondary);
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+            }
+            
+            .modal-close:hover {
+                background: var(--surface-2);
+                color: var(--text-primary);
+            }
+            
+            .prompt-section {
+                margin-bottom: 20px;
+            }
+            
+            .prompt-section h4 {
+                color: var(--text-secondary);
+                margin-bottom: 8px;
+            }
+            
+            .prompt-section p {
+                color: var(--text-primary);
+                line-height: 1.6;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            
+            .btn-text {
+                background: none;
+                border: none;
+                color: var(--text-secondary);
+                padding: 4px 8px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            
+            .btn-text:hover {
+                color: var(--text-primary);
+                background: var(--surface-2);
+                border-radius: 6px;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
