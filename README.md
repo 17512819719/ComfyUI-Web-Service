@@ -86,7 +86,7 @@
 - **Redis**: 3.2.100+
 - **MySQL**: 8.0+
 - **Docker**: 20.10+ (推荐容器化部署)
-- **Docker Compose**: 2.0+
+- **Docker Compose**: 2.0+ (支持 `docker compose` 和 `docker-compose`)
 - **Node.js**: 16+ (用于前端开发)
 
 ## 🚀 快速开始
@@ -108,6 +108,9 @@ cp .env .env.local
 
 #### 3. 一键部署
 ```bash
+# 给脚本执行权限 (Linux/macOS)
+chmod +x deploy.sh
+
 # 构建并启动所有服务
 ./deploy.sh build
 ./deploy.sh start -d
@@ -115,6 +118,8 @@ cp .env .env.local
 # 查看服务状态
 ./deploy.sh status
 ```
+
+**Windows 用户**: 在 Git Bash 或 WSL 中运行上述命令
 
 #### 4. 访问服务
 - 客户端界面: http://localhost:8001

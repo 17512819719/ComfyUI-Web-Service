@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ComfyUI Web Service 容器启动脚本
 # 作者: ComfyUI Web Service Team
 # 描述: 启动所有必要的服务组件
+# 兼容: Linux/Unix 容器环境
 
-set -e
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'

@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ComfyUI Web Service Docker 部署脚本
 # 作者: ComfyUI Web Service Team
 # 用途: 自动化部署 ComfyUI Web Service 到 Docker 环境
+# 兼容: Linux/macOS/Windows (Git Bash/WSL)
 
-set -e
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'
@@ -18,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="docker-compose.yml"
 ENV_FILE=".env"
+COMPOSE_CMD=""  # 将在 check_dependencies 中设置
 
 # 日志函数
 log_info() {
@@ -70,46 +72,112 @@ ComfyUI Web Service Docker 部署脚本
     $0 -p start                 # 使用生产配置启动
     $0 logs comfyui-web         # 查看特定服务日志
     $0 backup /path/to/backup   # 备份到指定目录
+    $0 migrate                  # 运行数据库迁移
+    $0 db-status               # 查看数据库状态
 
 EOF
+}
+
+# 检测操作系统
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)     echo "linux";;
+        Darwin*)    echo "macos";;
+        CYGWIN*|MINGW*|MSYS*) echo "windows";;
+        *)          echo "unknown";;
+    esac
+}
+
+# 检测 Docker Compose 命令
+detect_compose_command() {
+    # 优先使用新版 docker compose 命令
+    if docker compose version >/dev/null 2>&1; then
+        echo "docker compose"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        echo "docker-compose"
+    else
+        return 1
+    fi
 }
 
 # 检查依赖
 check_dependencies() {
     log_info "检查依赖..."
-    
+
+    # 检测操作系统
+    local os_type=$(detect_os)
+    log_info "检测到操作系统: $os_type"
+
     # 检查 Docker
-    if ! command -v docker &> /dev/null; then
+    if ! command -v docker >/dev/null 2>&1; then
         log_error "Docker 未安装，请先安装 Docker"
+        case "$os_type" in
+            "linux")
+                log_error "Ubuntu/Debian: sudo apt install docker.io"
+                log_error "CentOS/RHEL: sudo yum install docker"
+                ;;
+            "macos")
+                log_error "请安装 Docker Desktop for Mac"
+                ;;
+            "windows")
+                log_error "请安装 Docker Desktop for Windows"
+                ;;
+        esac
         exit 1
     fi
-    
+
     # 检查 Docker Compose
-    if ! command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD=$(detect_compose_command)
+    if [ $? -ne 0 ]; then
         log_error "Docker Compose 未安装，请先安装 Docker Compose"
+        log_error "支持的版本: docker compose (推荐) 或 docker-compose"
+        case "$os_type" in
+            "linux")
+                log_error "Ubuntu/Debian: sudo apt install docker-compose-plugin"
+                log_error "或手动安装: https://docs.docker.com/compose/install/"
+                ;;
+        esac
         exit 1
     fi
-    
+
+    log_info "检测到 Docker Compose 命令: $COMPOSE_CMD"
+
+    # 导出为全局变量
+    export COMPOSE_CMD
+
     # 检查 Docker 服务状态
-    if ! docker info &> /dev/null; then
+    if ! docker info >/dev/null 2>&1; then
         log_error "Docker 服务未运行，请启动 Docker 服务"
+        case "$os_type" in
+            "linux")
+                log_error "启动命令: sudo systemctl start docker"
+                ;;
+            "macos"|"windows")
+                log_error "请启动 Docker Desktop"
+                ;;
+        esac
         exit 1
     fi
-    
+
     log_info "依赖检查通过"
 }
 
 # 检查环境文件
 check_env_file() {
     local env_file="$SCRIPT_DIR/$ENV_FILE"
-    
+
     if [ ! -f "$env_file" ]; then
         log_warn "环境文件 $env_file 不存在，创建默认配置..."
-        cp "$SCRIPT_DIR/.env" "$env_file"
-        log_info "请编辑 $env_file 文件配置您的环境变量"
+        if [ -f "$SCRIPT_DIR/.env" ]; then
+            cp "$SCRIPT_DIR/.env" "$env_file"
+            log_info "请编辑 $env_file 文件配置您的环境变量"
+        else
+            log_error "模板文件 $SCRIPT_DIR/.env 不存在"
+            return 1
+        fi
         return 1
     fi
-    
+
     log_info "环境文件检查通过: $env_file"
     return 0
 }
@@ -121,7 +189,7 @@ build_image() {
     cd "$SCRIPT_DIR"
     
     # 构建镜像
-    docker-compose -f "$COMPOSE_FILE" build --no-cache
+    $COMPOSE_CMD -f "$COMPOSE_FILE" build --no-cache
     
     if [ $? -eq 0 ]; then
         log_info "镜像构建成功"
@@ -144,7 +212,7 @@ start_services() {
     cd "$SCRIPT_DIR"
     
     # 启动服务
-    docker-compose -f "$COMPOSE_FILE" up $detach_flag
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up $detach_flag
     
     if [ $? -eq 0 ]; then
         log_info "服务启动成功"
@@ -165,7 +233,7 @@ stop_services() {
     
     cd "$SCRIPT_DIR"
     
-    docker-compose -f "$COMPOSE_FILE" down
+    $COMPOSE_CMD -f "$COMPOSE_FILE" down
     
     if [ $? -eq 0 ]; then
         log_info "服务停止成功"
@@ -192,10 +260,10 @@ show_logs() {
     
     if [ -n "$service" ]; then
         log_info "查看服务 $service 的日志..."
-        docker-compose -f "$COMPOSE_FILE" logs -f "$service"
+        $COMPOSE_CMD -f "$COMPOSE_FILE" logs -f "$service"
     else
         log_info "查看所有服务日志..."
-        docker-compose -f "$COMPOSE_FILE" logs -f
+        $COMPOSE_CMD -f "$COMPOSE_FILE" logs -f
     fi
 }
 
@@ -205,7 +273,7 @@ show_status() {
     
     cd "$SCRIPT_DIR"
     
-    docker-compose -f "$COMPOSE_FILE" ps
+    $COMPOSE_CMD -f "$COMPOSE_FILE" ps
     
     echo ""
     log_info "资源使用情况:"
@@ -226,8 +294,8 @@ clean_resources() {
     docker network prune -f
     
     # 清理未使用的数据卷 (谨慎使用)
-    read -p "是否清理未使用的数据卷? (y/N): " -n 1 -r
-    echo
+    echo -n "是否清理未使用的数据卷? (y/N): "
+    read -r REPLY
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         docker volume prune -f
     fi
@@ -239,15 +307,20 @@ clean_resources() {
 backup_data() {
     local backup_dir="$1"
     local timestamp=$(date +%Y%m%d_%H%M%S)
-    
+
     if [ -z "$backup_dir" ]; then
-        backup_dir="./backups/backup_$timestamp"
+        backup_dir="$SCRIPT_DIR/backups/backup_$timestamp"
     fi
-    
+
+    # 确保备份目录是绝对路径
+    if [[ ! "$backup_dir" = /* ]]; then
+        backup_dir="$(pwd)/$backup_dir"
+    fi
+
     log_info "备份数据到: $backup_dir"
-    
+
     mkdir -p "$backup_dir"
-    
+
     cd "$SCRIPT_DIR"
     
     # 备份数据卷
@@ -263,7 +336,9 @@ backup_data() {
     # 备份配置文件
     log_info "备份配置文件..."
     cp -r "$SCRIPT_DIR" "$backup_dir/docker_config"
-    cp "$PROJECT_ROOT/backend/config.yaml" "$backup_dir/"
+    if [ -f "$PROJECT_ROOT/backend/config.yaml" ]; then
+        cp "$PROJECT_ROOT/backend/config.yaml" "$backup_dir/"
+    fi
     
     log_info "备份完成: $backup_dir"
 }
@@ -328,13 +403,13 @@ run_database_migration() {
     cd "$SCRIPT_DIR"
 
     # 检查服务是否运行
-    if ! docker-compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
+    if ! $COMPOSE_CMD -f "$COMPOSE_FILE" ps | grep -q "Up"; then
         log_error "服务未运行，请先启动服务"
         exit 1
     fi
 
     # 在容器中运行迁移
-    docker-compose -f "$COMPOSE_FILE" exec comfyui-web python database/tools/db_manager.py migrate
+    $COMPOSE_CMD -f "$COMPOSE_FILE" exec comfyui-web python database/tools/db_manager.py migrate
 
     if [ $? -eq 0 ]; then
         log_info "数据库迁移完成"
@@ -351,17 +426,17 @@ show_database_status() {
     cd "$SCRIPT_DIR"
 
     # 检查服务是否运行
-    if ! docker-compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
+    if ! $COMPOSE_CMD -f "$COMPOSE_FILE" ps | grep -q "Up"; then
         log_error "服务未运行，请先启动服务"
         exit 1
     fi
 
     # 在容器中查看数据库状态
-    docker-compose -f "$COMPOSE_FILE" exec comfyui-web python database/tools/db_manager.py status
+    $COMPOSE_CMD -f "$COMPOSE_FILE" exec comfyui-web python database/tools/db_manager.py status
 
     echo ""
     log_info "迁移状态:"
-    docker-compose -f "$COMPOSE_FILE" exec comfyui-web python database/tools/db_manager.py migration-status
+    $COMPOSE_CMD -f "$COMPOSE_FILE" exec comfyui-web python database/tools/db_manager.py migration-status
 }
 
 # 显示服务信息

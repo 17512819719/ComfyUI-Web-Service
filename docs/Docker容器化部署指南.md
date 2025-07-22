@@ -40,6 +40,10 @@ sudo systemctl enable docker
 sudo usermod -aG docker $USER
 ```
 
+**注意**: 新版Docker已将Docker Compose集成为`docker compose`子命令。部署脚本会自动检测并使用合适的命令：
+- 优先使用 `docker compose` (推荐)
+- 兼容旧版 `docker-compose`
+
 **Windows:**
 下载并安装 Docker Desktop for Windows
 
@@ -47,7 +51,14 @@ sudo usermod -aG docker $USER
 
 ```bash
 docker --version
+
+# 检查 Docker Compose (新版)
+docker compose version
+
+# 或检查旧版
 docker-compose --version
+
+# 测试 Docker
 docker run hello-world
 ```
 
@@ -92,12 +103,17 @@ nano .env.local
 ### 3. 一键部署
 
 ```bash
-# 给部署脚本执行权限
+# Linux/macOS: 给部署脚本执行权限
 chmod +x deploy.sh
 
 # 构建并启动服务
 ./deploy.sh build
 ./deploy.sh start -d
+
+# Windows: 在 Git Bash 或 WSL 中运行
+# 或者直接使用 bash 命令
+bash deploy.sh build
+bash deploy.sh start -d
 ```
 
 ### 4. 验证部署
