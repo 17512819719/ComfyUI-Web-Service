@@ -60,7 +60,6 @@ backend/uploads/*
 *.sqlite3
 
 # Environment variables
-.env
 .env.local
 
 # Coverage
