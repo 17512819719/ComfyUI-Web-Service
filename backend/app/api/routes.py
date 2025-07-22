@@ -19,7 +19,8 @@ from .schemas import (
     WorkflowInfo, WorkflowListResponse, SystemConfigResponse, HealthCheckResponse,
     ErrorResponse, TaskTypeEnum, TaskStatusEnum,
     NodeInfo, NodeRegistrationRequest, ClusterStatsResponse, NodesListResponse,
-    LoadBalancingConfigResponse, NodeOperationResponse, NodeStatusEnum
+    LoadBalancingConfigResponse, NodeOperationResponse, NodeStatusEnum,
+    ReloadTaskRequest
 )
 from ..auth import verify_token
 from ..core.task_manager import get_task_type_manager
@@ -56,24 +57,49 @@ def convert_file_path_to_url(file_path: str) -> str:
     import os
     import re
 
+    # 调试日志
+    logger.debug(f"转换文件路径: {file_path}")
+
     # 标准化路径分隔符
     file_path = file_path.replace('\\', '/')
-    
-    # 尝试匹配outputs目录
-    if 'outputs/' in file_path or 'outputs\\' in file_path:
+
+    # 尝试匹配backend/outputs目录
+    if '/backend/outputs/' in file_path or 'backend/outputs/' in file_path:
+        # 使用正则表达式匹配outputs之后的路径
+        match = re.search(r'backend/outputs/(.+)$', file_path)
+        if match:
+            url_path = match.group(1)
+            logger.debug(f"Backend输出URL: /outputs/{url_path}")
+            return f"/outputs/{url_path}"
+
+    # 尝试匹配项目根目录下的outputs目录
+    if '/outputs/' in file_path:
         # 使用正则表达式匹配最后一个outputs之后的路径
-        match = re.search(r'outputs[/\\]([^/\\].*)$', file_path)
+        match = re.search(r'outputs/(.+)$', file_path)
         if match:
-            return f"/outputs/{match.group(1)}"
-    
+            url_path = match.group(1)
+            logger.debug(f"项目输出URL: /outputs/{url_path}")
+            return f"/outputs/{url_path}"
+
     # 尝试匹配ComfyUI output目录
-    if 'output/' in file_path or 'output\\' in file_path:
-        # 使用正则表达式匹配最后一个output之后的路径
-        match = re.search(r'output[/\\]([^/\\].*)$', file_path)
+    if '/ComfyUI/output/' in file_path or 'ComfyUI/output/' in file_path:
+        # 使用正则表达式匹配output之后的路径
+        match = re.search(r'ComfyUI/output/(.+)$', file_path)
         if match:
-            return f"/comfyui-output/{match.group(1)}"
-    
+            url_path = match.group(1)
+            logger.debug(f"ComfyUI输出URL: /comfyui-output/{url_path}")
+            return f"/comfyui-output/{url_path}"
+
+    # 尝试匹配任何output目录（兜底）
+    if '/output/' in file_path:
+        match = re.search(r'output/(.+)$', file_path)
+        if match:
+            url_path = match.group(1)
+            logger.debug(f"通用输出URL: /comfyui-output/{url_path}")
+            return f"/comfyui-output/{url_path}"
+
     # 如果都不匹配，返回None（使用下载接口作为兜底）
+    logger.debug(f"无法转换路径: {file_path}")
     return None
 
 
@@ -113,6 +139,9 @@ async def submit_text_to_image_task(
             'workflow_name': workflow_name,
             'prompt': request_data.get('prompt', ''),
             'negative_prompt': request_data.get('negative_prompt', ''),
+            'width': request_data.get('width', 512),
+            'height': request_data.get('height', 512),
+            'model_name': request_data.get('checkpoint', ''),
             'status': TaskStatusEnum.QUEUED.value,
             'progress': 0,
             'message': '文生图任务已提交到队列',
@@ -346,17 +375,42 @@ async def submit_image_to_video_task(
         processor = task_manager.get_processor(TaskType.IMAGE_TO_VIDEO)
         estimated_time = processor.estimate_processing_time(request_data) if processor else 120  # 图生视频通常需要更长时间
 
-        # 初始化任务状态 - 使用Redis状态管理器
+        # 准备任务数据
+        workflow_name = request_data.get('workflow_name', 'Wan2.1 i2v')
+        task_data = {
+            'task_id': task_id,
+            'client_id': user.get('client_id', user['sub']),  # 优先使用client_id，否则使用用户名
+            'task_type': TaskType.IMAGE_TO_VIDEO.value,
+            'workflow_name': workflow_name,
+            'prompt': request_data.get('prompt', ''),
+            'negative_prompt': request_data.get('negative_prompt', ''),
+            'image_path': request_data.get('image', ''),
+            'status': TaskStatusEnum.QUEUED.value,
+            'progress': 0,
+            'message': '图生视频任务已提交到队列',
+            'estimated_time': estimated_time
+        }
+
+        # 准备参数数据
+        parameters = []
+        for key, value in request_data.items():
+            if key not in ['task_id', 'user_id', 'task_type']:
+                parameters.append({
+                    'parameter_name': key,
+                    'parameter_value': str(value),
+                    'parameter_type': 'string'
+                })
+
+        # 创建任务到数据库
         status_manager = get_status_manager()
+        task_created = status_manager.create_task(task_data, source_type='client')
+
+        # 初始化任务状态（只包含数据库模型中存在的字段）
         initial_status = {
             'status': TaskStatusEnum.QUEUED.value,
             'progress': 0,
             'message': '图生视频任务已提交到队列',
-            'created_at': datetime.now().isoformat(),
-            'updated_at': datetime.now().isoformat(),
-            'estimated_time': estimated_time,
-            'task_type': TaskType.IMAGE_TO_VIDEO.value,
-            'user_id': user['sub']
+            'estimated_time': estimated_time
         }
         status_manager.set_task_status(task_id, initial_status)
 
@@ -442,7 +496,7 @@ async def upload_image(
 
         # 使用文件服务保存文件
         client_id = user.get('client_id', user['sub'])
-        file_info = file_service.save_uploaded_file(
+        file_info = file_service.save_uploaded_file(    
             file_content=file_content,
             original_filename=file.filename,
             client_id=client_id,
@@ -453,7 +507,9 @@ async def upload_image(
             raise HTTPException(status_code=500, detail="文件保存失败")
 
         # 生成相对路径用于工作流处理
-        relative_path = file_info['file_path'].replace(os.path.dirname(file_info['file_path']), '').lstrip(os.sep).replace('\\', '/')
+        from ..utils.path_utils import get_upload_dir
+        upload_dir = get_upload_dir()
+        relative_path = os.path.relpath(file_info['file_path'], upload_dir).replace('\\', '/')
 
         logger.info(f"图片上传成功: {file_info['file_name']}")
 
@@ -717,7 +773,7 @@ async def health_check_v2():
     except Exception:
         services['celery'] = 'unhealthy'
 
-    # 检查Redis状态
+    # 检查Redis状态（快速检查，不重试）
     try:
         import redis
         config_manager = get_config_manager()
@@ -726,7 +782,9 @@ async def health_check_v2():
             host=redis_config.get('host', 'localhost'),
             port=redis_config.get('port', 6379),
             db=redis_config.get('db', 0),
-            password=redis_config.get('password')
+            password=redis_config.get('password'),
+            socket_connect_timeout=1,  # 快速检查，1秒超时
+            socket_timeout=1
         )
         r.ping()
         services['redis'] = 'healthy'
@@ -1469,32 +1527,90 @@ async def get_load_balancer_config(token: HTTPAuthorizationCredentials = Depends
         logger.error(f"获取负载均衡配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取负载均衡配置失败: {str(e)}")
 
+@router.post("/api/v2/tasks/reload", response_model=TaskSubmissionResponse)
+async def reload_task(
+    request: ReloadTaskRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """重新加载任务"""
+    user = verify_token(credentials.credentials)
+    task_id = request.task_id
+    status_manager = get_status_manager()
+    task_info = status_manager.get_task_status(task_id)
+    if not task_info:
+        raise HTTPException(status_code=404, detail="任务不存在")
 
-@router.get("/api/v2/test-image-display")
-async def test_image_display():
-    """测试图片显示的临时端点"""
-    return {
-        "tasks": [
-            {
-                "task_id": "test-task-001",
-                "status": "completed",
-                "message": "测试任务完成",
-                "progress": 100.0,
-                "result_data": {
-                    "files": [
-                        "D:\\Project\\ComfyUI-Web-Service\\backend\\outputs\\2025\\07\\15\\SD_0021.png",
-                        "D:\\Project\\ComfyUI-Web-Service\\backend\\outputs\\2025\\07\\15\\SD_0022.png",
-                        "D:\\Project\\ComfyUI-Web-Service\\backend\\outputs\\2025\\07\\15\\SD_0023.png",
-                        "D:\\Project\\ComfyUI-Web-Service\\backend\\outputs\\2025\\07\\15\\SD_0024.png"
-                    ]
-                },
-                "error_message": None,
-                "created_at": "2025-07-15T14:48:46",
-                "updated_at": "2025-07-15T14:49:23",
-                "estimated_time": 30.0
+    # 重新提交任务到队列
+    try:
+        # 根据任务类型选择对应的执行函数
+        task_type = task_info.get('task_type', 'text_to_image')
+
+        if task_type == 'text_to_image':
+            from ..queue.tasks import execute_text_to_image_task
+            # 构建任务数据（保持原有task_id）
+            task_data = {
+                'task_id': task_id,
+                'user_id': user['sub'],
+                'task_type': task_type,
+                'prompt': task_info.get('prompt', ''),
+                'negative_prompt': task_info.get('negative_prompt', ''),
+                'width': task_info.get('width', 512),
+                'height': task_info.get('height', 512),
+                'workflow_name': task_info.get('workflow_name', 'sd_basic'),
+                'priority': task_info.get('priority', 1)
             }
-        ],
-        "total": 1,
-        "limit": 50,
-        "offset": 0
-    }
+            celery_task = execute_text_to_image_task.delay(task_data)
+        elif task_type == 'image_to_video':
+            from ..queue.tasks import execute_image_to_video_task
+            # 构建任务数据（保持原有task_id）
+            task_data = {
+                'task_id': task_id,
+                'user_id': user['sub'],
+                'task_type': task_type,
+                'prompt': task_info.get('prompt', ''),
+                'negative_prompt': task_info.get('negative_prompt', ''),
+                'image': task_info.get('image', ''),
+                'workflow_name': task_info.get('workflow_name', 'Wan2.1 i2v'),
+                'priority': task_info.get('priority', 1)
+            }
+            celery_task = execute_image_to_video_task.delay(task_data)
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的任务类型: {task_type}")
+
+        # 更新现有任务状态（重置为排队状态，保留生成参数）
+        updated_status = {
+            'status': 'queued',
+            'progress': 0,
+            'message': '任务已重新提交到队列',
+            'celery_task_id': celery_task.id,
+            'error_message': None,  # 清除之前的错误信息
+            'updated_at': datetime.now().isoformat(),
+            # 保存生成参数到数据库（从原任务信息或新任务数据中获取）
+            'model_name': task_info.get('model_name') or task_data.get('model_name'),
+            'width': task_info.get('width') or task_data.get('width'),
+            'height': task_info.get('height') or task_data.get('height'),
+            'steps': task_info.get('steps') or task_data.get('steps'),
+            'cfg_scale': task_info.get('cfg_scale') or task_data.get('cfg_scale'),
+            'sampler': task_info.get('sampler') or task_data.get('sampler'),
+            'scheduler': task_info.get('scheduler') or task_data.get('scheduler'),
+            'seed': task_info.get('seed') or task_data.get('seed'),
+            'batch_size': task_info.get('batch_size') or task_data.get('batch_size', 1)
+        }
+        status_manager.update_task_status(task_id, updated_status)
+        logger.info(f"任务已重新提交到Celery队列: {task_id} -> {celery_task.id}")
+
+        # 预估处理时间
+        estimated_time = 30.0  # 默认30秒
+
+    except Exception as e:
+        logger.error(f"重新提交任务到Celery失败: {e}")
+        raise HTTPException(status_code=500, detail=f"重新提交任务到Celery失败: {str(e)}")
+
+    return TaskSubmissionResponse(
+        task_id=task_id,  # 返回原有的task_id
+        status=TaskStatusEnum.QUEUED,
+        message="任务已重新加载",
+        estimated_time=estimated_time
+    )
+
+

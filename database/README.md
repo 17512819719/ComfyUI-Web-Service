@@ -1,68 +1,79 @@
-# ComfyUI Web Service 数据库设计
+# ComfyUI Web Service 数据库管理
 
-## 数据库架构概述
+## 目录结构
 
-本项目采用**三数据库分离架构**，将不同功能模块的数据分别存储，提高系统的可维护性和安全性。
+```
+database/
+├── README.md                    # 本文档
+├── setup_databases.sql          # 数据库和用户创建脚本
+├── schema/                      # 数据库结构文件（您导出的SQL）
+│   ├── client_database.sql      # 客户端数据库结构
+│   ├── admin_database.sql       # 管理后台数据库结构
+│   └── shared_database.sql      # 共享数据库结构
+├── migrations/                  # 数据库迁移文件
+│   └── (迁移文件将放在这里)
+└── tools/                       # 数据库管理工具
+    ├── db_manager.py            # 主要的数据库管理工具
+    ├── migration_manager.py     # 迁移管理器
+    └── create_migration.py      # 创建迁移文件工具
+```
 
-### 数据库分工
+## 数据库架构
 
-#### 1. 客户端数据库 (comfyui_client)
-- **用途**: 存储客户端用户数据和基础任务信息
-- **访问者**: Client-ComfyUI.html 前端
-- **特点**: 
-  - 简化的用户管理（基于客户端ID）
-  - 基础任务状态跟踪
-  - 文件上传管理
-  - 访问日志记录
+本项目采用**三数据库分离架构**：
 
-#### 2. 管理后台数据库 (comfyui_admin)  
-- **用途**: 存储系统管理、配置和监控数据
-- **访问者**: Vue.js 管理后台
-- **特点**:
-  - 完整的管理员用户系统
-  - 工作流模板管理
-  - 模型管理
-  - 节点管理
-  - 系统监控和日志
+### 1. 客户端数据库 (comfyui_client)
+- 存储客户端用户数据和基础任务信息
+- 访问者: Client-ComfyUI.html 前端
 
-#### 3. 共享数据库 (comfyui_shared)
-- **用途**: 存储需要跨系统访问的核心数据
-- **访问者**: 客户端和管理端都可访问
-- **特点**:
-  - 统一的任务管理
-  - 全局文件存储
-  - 节点任务分配
-  - 系统统计数据
+### 2. 管理后台数据库 (comfyui_admin)
+- 存储系统管理、配置和监控数据
+- 访问者: Vue.js 管理后台
 
-## 数据库表结构
+### 3. 共享数据库 (comfyui_shared)
+- 存储需要跨系统访问的核心数据
+- 访问者: 客户端和管理端都可访问
 
-### 客户端数据库表
-- `client_users` - 客户端用户表
-- `client_tasks` - 客户端任务表  
-- `client_task_parameters` - 客户端任务参数表
-- `client_task_results` - 客户端任务结果表
-- `client_uploads` - 客户端上传文件表
-- `client_access_logs` - 客户端访问日志表
+## 使用方法
 
-### 管理后台数据库表
-- `admin_users` - 管理员用户表
-- `workflow_templates` - 工作流模板表
-- `workflow_parameters` - 工作流参数配置表
-- `models` - 模型表
-- `workflow_models` - 工作流模型关联表
-- `nodes` - 节点表
-- `system_logs` - 系统日志表
-- `performance_metrics` - 性能监控表
-- `system_configs` - 系统配置表
+### 1. 初始化数据库（新环境部署）
 
-### 共享数据库表
-- `global_tasks` - 全局任务表
-- `global_task_parameters` - 全局任务参数表
-- `global_task_results` - 全局任务结果表
-- `node_task_assignments` - 节点任务分配表
-- `global_files` - 全局文件表
-- `task_queue_status` - 任务队列状态表
-- `system_statistics` - 系统统计表
+```bash
+# 使用数据库管理工具初始化
+python database/tools/db_manager.py init
+
+# 这会自动：
+# 1. 创建数据库表结构
+# 2. 执行所有迁移
+# 3. 初始化默认数据
+```
+
+### 2. 运行迁移
+
+```bash
+# 只运行迁移
+python database/tools/db_manager.py migrate
+
+# 查看迁移状态
+python database/tools/db_manager.py migration-status
+```
+
+### 3. 检查数据库状态
+
+```bash
+# 检查数据库连接和表统计
+python database/tools/db_manager.py status
+```
+
+### 4. 创建新的迁移文件
+
+```bash
+# 创建新迁移
+python database/tools/create_migration.py create add_new_field --database client --description "添加新字段"
+
+# 列出现有迁移
+python database/tools/create_migration.py list
+```
 
 ## 数据流程
 

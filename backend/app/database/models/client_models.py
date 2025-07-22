@@ -47,6 +47,18 @@ class ClientTask(Base, TimestampMixin):
     workflow_name = Column(String(100), nullable=False, comment='工作流名称')
     prompt = Column(Text, comment='正向提示词')
     negative_prompt = Column(Text, comment='反向提示词')
+
+    # 生成参数
+    model_name = Column(String(200), comment='使用的模型名称')
+    width = Column(Integer, comment='图片宽度')
+    height = Column(Integer, comment='图片高度')
+    steps = Column(Integer, comment='采样步数')
+    cfg_scale = Column(DECIMAL(4, 2), comment='CFG引导强度')
+    sampler = Column(String(50), comment='采样器')
+    scheduler = Column(String(50), comment='调度器')
+    seed = Column(BigInteger, comment='随机种子')
+    batch_size = Column(Integer, default=1, comment='批量大小')
+
     status = Column(String(20), default='queued', comment='任务状态')
     progress = Column(DECIMAL(5, 2), default=0.00, comment='进度百分比')
     message = Column(Text, comment='状态消息')
@@ -121,32 +133,27 @@ class ClientTaskResult(Base):
 class ClientUpload(Base):
     """客户端上传文件表"""
     __tablename__ = 'client_uploads'
-    
+
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    upload_id = Column(String(36), unique=True, nullable=False, comment='上传UUID')
+    file_id = Column(String(36), unique=True, nullable=False, comment='文件UUID')
     client_id = Column(String(36), ForeignKey('client_users.client_id'), nullable=False, comment='客户端ID')
     original_name = Column(String(255), nullable=False, comment='原始文件名')
-    file_name = Column(String(255), nullable=False, comment='存储文件名')
     file_path = Column(String(500), nullable=False, comment='文件路径')
     file_size = Column(BigInteger, nullable=False, comment='文件大小(字节)')
     mime_type = Column(String(100), nullable=False, comment='MIME类型')
-    file_hash = Column(String(64), comment='文件哈希')
-    upload_type = Column(String(20), default='image', comment='上传类型')
     width = Column(Integer, comment='图片宽度')
     height = Column(Integer, comment='图片高度')
-    status = Column(String(20), default='completed', comment='上传状态')
     is_processed = Column(Boolean, default=False, comment='是否已处理')
     created_at = Column(DateTime, server_default='CURRENT_TIMESTAMP')
-    
+
     # 关系
     client_user = relationship("ClientUser", back_populates="uploads")
-    
+
     # 索引
     __table_args__ = (
-        Index('idx_upload_id', 'upload_id'),
+        Index('idx_file_id', 'file_id'),
         Index('idx_client_id', 'client_id'),
         Index('idx_created_at', 'created_at'),
-        Index('idx_status', 'status'),
         {'extend_existing': True}
     )
 

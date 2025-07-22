@@ -10,6 +10,8 @@ echo ================================================================
 echo   Redis - Background startup
 echo   Celery Worker - Separate terminal
 echo   FastAPI - Main service (current terminal)
+echo   Client Frontend - Separate terminal
+echo   Admin Frontend - Separate terminal
 echo ================================================================
 echo.
 
@@ -24,6 +26,18 @@ if exist "backend\.venv\Scripts\python.exe" (
 ) else (
     set "PYTHON_EXE=python"
     echo [WARN] Using system Python
+)
+
+:: Check Node.js environment
+echo [INFO] Checking Node.js environment...
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js is not installed or not in PATH
+    echo [INFO] Please install Node.js from https://nodejs.org/
+    pause
+    exit /b 1
+) else (
+    echo [OK] Node.js is available
 )
 
 :: Check scripts directory
@@ -45,6 +59,12 @@ if not exist "scripts\start_celery.py" (
 if not exist "scripts\start_fastapi.py" (
     set "MISSING_SCRIPTS=!MISSING_SCRIPTS! start_fastapi.py"
 )
+if not exist "scripts\start_client.py" (
+    set "MISSING_SCRIPTS=!MISSING_SCRIPTS! start_client.py"
+)
+if not exist "scripts\start_admin.py" (
+    set "MISSING_SCRIPTS=!MISSING_SCRIPTS! start_admin.py"
+)
 
 if not "!MISSING_SCRIPTS!"=="" (
     echo [ERROR] Missing startup scripts: !MISSING_SCRIPTS!
@@ -54,32 +74,6 @@ if not "!MISSING_SCRIPTS!"=="" (
 
 echo [OK] All startup scripts ready
 echo.
-
-@REM :: Step 0: Check Database Connection
-@REM echo ================================================================
-@REM echo Step 0: Check Database Connection
-@REM echo ================================================================
-@REM echo.
-
-@REM echo [INFO] Testing database connections...
-@REM %PYTHON_EXE% backend\test_database.py --check-only 2>nul
-@REM if errorlevel 1 (
-@REM     echo [WARN] Database connection test failed
-@REM     echo [INFO] This might be the first run or database configuration issue
-@REM     echo [INFO] The system will continue, but some features may not work properly
-@REM     echo.
-@REM     set /p "CONTINUE_DB=Continue without database? (y/n): "
-@REM     if /i not "!CONTINUE_DB!"=="y" (
-@REM         echo [INFO] Please check database configuration in backend\config.yaml
-@REM         pause
-@REM         exit /b 1
-@REM     )
-@REM ) else (
-@REM     echo [OK] Database connections verified
-@REM )
-
-@REM echo.
-@REM timeout /t 2 /nobreak >nul
 
 :: Step 1: Start Redis (background)
 echo ================================================================
@@ -119,6 +113,7 @@ echo ================================================================
 echo.
 
 echo [INFO] Starting Celery Worker...
+@REM %PYTHON_EXE% scripts\start_celery.py
 start "Celery Worker - ComfyUI" cmd /k "%PYTHON_EXE% scripts\start_celery.py"
 
 echo [OK] Celery Worker terminal opened
@@ -127,23 +122,72 @@ echo [INFO] Please check Celery terminal window to confirm startup
 :: Wait for user confirmation
 echo.
 echo [WAIT] Waiting for Celery Worker startup...
-echo        Please confirm you see "celery@xxx ready." message in Celery terminal
-echo.
-set /p "CELERY_READY=Is Celery Worker started successfully? (y/n): "
-if /i not "!CELERY_READY!"=="y" (
-    echo [ERROR] Celery Worker startup failed or not confirmed
-    echo [INFO] Please check Celery terminal window for error messages
-    pause
-    exit /b 1
-)
 
 echo [OK] Celery Worker startup confirmed
-timeout /t 1 /nobreak >nul
+timeout /t 3 /nobreak >nul
 
-:: Step 3: Start FastAPI (current terminal)
+:: Step 3: Start Client Frontend (new terminal)
 echo.
 echo ================================================================
-echo Step 3: Start FastAPI main service (current terminal)
+echo Step 3: Start Client Frontend (new terminal)
+echo ================================================================
+echo.
+
+echo [INFO] Starting Client Frontend...
+start "Client Frontend - ComfyUI" cmd /k "%PYTHON_EXE% scripts\start_client.py"
+
+echo [OK] Client Frontend terminal opened
+echo [INFO] Please check Client terminal window to confirm startup
+
+:: Wait for user confirmation
+echo.
+echo [WAIT] Waiting for Client Frontend startup...
+echo        Please confirm you see "VITE v4.x.x" message in Client terminal
+echo.
+@REM set /p "CLIENT_READY=Is Client Frontend started successfully? (y/n): "
+@REM if /i not "!CLIENT_READY!"=="y" (
+@REM     echo [ERROR] Client Frontend startup failed or not confirmed
+@REM     echo [INFO] Please check Client terminal window for error messages
+@REM     pause
+@REM     exit /b 1
+@REM )
+
+echo [OK] Client Frontend startup confirmed
+timeout /t 3 /nobreak >nul
+
+:: Step 4: Start Admin Frontend (new terminal)
+echo.
+echo ================================================================
+echo Step 4: Start Admin Frontend (new terminal)
+echo ================================================================
+echo.
+
+echo [INFO] Starting Admin Frontend...
+start "Admin Frontend - ComfyUI" cmd /k "%PYTHON_EXE% scripts\start_admin.py"
+
+echo [OK] Admin Frontend terminal opened
+echo [INFO] Please check Admin terminal window to confirm startup
+
+:: Wait for user confirmation
+echo.
+echo [WAIT] Waiting for Admin Frontend startup...
+echo        Please confirm you see "VITE v4.x.x" message in Admin terminal
+echo.
+@REM set /p "ADMIN_READY=Is Admin Frontend started successfully? (y/n): "
+@REM if /i not "!ADMIN_READY!"=="y" (
+@REM     echo [ERROR] Admin Frontend startup failed or not confirmed
+@REM     echo [INFO] Please check Admin terminal window for error messages
+@REM     pause
+@REM     exit /b 1
+@REM )
+
+echo [OK] Admin Frontend startup confirmed
+timeout /t  /nobreak >nul
+
+:: Step 5: Start FastAPI (current terminal)
+echo.
+echo ================================================================
+echo Step 5: Start FastAPI main service (current terminal)
 echo ================================================================
 echo.
 
@@ -175,6 +219,8 @@ if /i "!STOP_ALL!"=="y" (
     echo [WARN] Other services are still running:
     echo        - Redis (background)
     echo        - Celery Worker (separate terminal)
+    echo        - Client Frontend (separate terminal)
+    echo        - Admin Frontend (separate terminal)
     echo.
     echo [INFO] To stop all services, run:
     echo        python scripts\stop_services.py

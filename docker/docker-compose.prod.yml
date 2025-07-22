@@ -1,0 +1,250 @@
+# 生产环境 Docker Compose 配置
+# 包含更严格的安全配置和性能优化
+
+version: '3.8'
+
+services:
+  # MySQL 数据库服务 - 生产配置
+  mysql:
+    image: mysql:8.0
+    container_name: comfyui-mysql-prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      MYSQL_INIT_CONNECT: 'SET NAMES utf8mb4;'
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"  # 只绑定本地
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../database:/docker-entrypoint-initdb.d:ro
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - mysql_logs:/var/log/mysql
+    networks:
+      - comfyui-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+      - /var/run/mysqld
+
+  # Redis 缓存服务 - 生产配置
+  redis:
+    image: redis:7-alpine
+    container_name: comfyui-redis-prod
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"  # 只绑定本地
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - comfyui-network
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # ComfyUI Web Service 主应用 - 生产配置
+  comfyui-web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: comfyui-web-service-prod
+    ports:
+      - "127.0.0.1:${FASTAPI_PORT:-8000}:8000"  # 只绑定本地，通过 Nginx 代理
+      - "127.0.0.1:${CLIENT_PORT:-8001}:8001"
+      - "127.0.0.1:${ADMIN_PORT:-8002}:8002"
+    volumes:
+      - ../backend/outputs:/app/backend/outputs
+      - ../backend/uploads:/app/backend/uploads
+      - ../backend/workflows:/app/backend/workflows:ro
+      - ./config/config.prod.yaml:/app/backend/config.yaml:ro
+      - comfyui_logs:/app/logs
+      - comfyui_temp:/app/temp
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - PYTHONPATH=/app/backend
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENVIRONMENT=production
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - comfyui-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4.0'
+        reservations:
+          memory: 4G
+          cpus: '2.0'
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+      - /app/temp
+
+  # Nginx 反向代理 - 生产配置
+  nginx:
+    image: nginx:alpine
+    container_name: comfyui-nginx-prod
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ../frontend:/usr/share/nginx/html:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - comfyui-web
+    networks:
+      - comfyui-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+
+  # 监控服务 (可选)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: comfyui-prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - comfyui-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    security_opt:
+      - no-new-privileges:true
+
+  # 日志收集 (可选)
+  fluentd:
+    image: fluent/fluentd:v1.16-debian-1
+    container_name: comfyui-fluentd
+    volumes:
+      - ./logging/fluentd.conf:/fluentd/etc/fluent.conf:ro
+      - comfyui_logs:/app/logs:ro
+      - mysql_logs:/var/log/mysql:ro
+      - nginx_logs:/var/log/nginx:ro
+    networks:
+      - comfyui-network
+    restart: unless-stopped
+    profiles:
+      - logging
+    security_opt:
+      - no-new-privileges:true
+
+# 数据卷定义
+volumes:
+  mysql_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_ROOT:-/opt/comfyui-data}/mysql
+  
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_ROOT:-/opt/comfyui-data}/redis
+  
+  comfyui_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_ROOT:-/opt/comfyui-data}/logs
+  
+  comfyui_temp:
+    driver: local
+  
+  mysql_logs:
+    driver: local
+  
+  nginx_logs:
+    driver: local
+  
+  prometheus_data:
+    driver: local
+
+# 网络定义
+networks:
+  comfyui-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: comfyui-br0

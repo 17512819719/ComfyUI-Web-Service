@@ -290,3 +290,8 @@ class NodeOperationResponse(BaseModel):
     success: bool = Field(..., description="操作是否成功")
     message: str = Field(..., description="操作消息")
     node_id: Optional[str] = Field(None, description="节点ID")
+
+
+class ReloadTaskRequest(BaseModel):
+    """重新加载任务请求"""
+    task_id: str = Field(..., description="任务ID")

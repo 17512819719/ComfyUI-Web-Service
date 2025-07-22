@@ -67,25 +67,23 @@ except Exception as e:
     print(f'⚠️  清理任务队列时出错: {e}')
 "
 
-:: 检查分布式配置
+:: 验证分布式配置
 echo.
-echo %BLUE%[5/6] 检查分布式配置...%RESET%
-python -c "
-import sys
-sys.path.append('.')
-try:
-    from app.core.config_manager import get_config_manager
-    config_manager = get_config_manager()
-    if config_manager.is_distributed_mode():
-        static_nodes = config_manager.get_static_nodes_config()
-        print(f'✅ 分布式模式已启用，配置了 {len(static_nodes)} 个节点')
-        for node in static_nodes:
-            print(f'   - {node[\"node_id\"]}: {node[\"host\"]}:{node[\"port\"]}')
-    else:
-        print('ℹ️  当前为单机模式')
-except Exception as e:
-    print(f'❌ 配置检查失败: {e}')
-"
+echo %BLUE%[5/6] 验证分布式配置...%RESET%
+cd ..
+python scripts\validate_distributed_config.py
+if errorlevel 1 (
+    echo %YELLOW%⚠️  分布式配置验证有问题%RESET%
+    set /p "CONTINUE=是否继续启动? (y/n): "
+    if /i not "!CONTINUE!"=="y" (
+        echo %RED%启动已取消%RESET%
+        pause
+        exit /b 1
+    )
+) else (
+    echo %GREEN%✅ 分布式配置验证通过%RESET%
+)
+cd backend
 
 :: 测试分布式功能
 echo.

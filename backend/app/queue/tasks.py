@@ -3,6 +3,7 @@ Celery任务定义
 """
 import asyncio
 import logging
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 from celery import Task
@@ -156,6 +157,75 @@ class BaseWorkflowTask(Task):
                 'error': str(e)
             }
 
+    def _extract_generation_params(self, request_data: Dict[str, Any], workflow_data: Dict[str, Any]) -> Dict[str, Any]:
+        """从请求数据和工作流数据中提取生成参数"""
+        params = {}
+
+        # 从请求数据中提取基础参数
+        param_mapping = {
+            'model_name': 'checkpoint',  # checkpoint映射到model_name
+            'width': 'width',
+            'height': 'height',
+            'steps': 'steps',
+            'cfg_scale': 'cfg_scale',
+            'sampler': 'sampler',
+            'scheduler': 'scheduler',
+            'seed': 'seed',
+            'batch_size': 'batch_size'
+        }
+
+        for db_field, request_field in param_mapping.items():
+            if request_field in request_data:
+                params[db_field] = request_data[request_field]
+
+        # 从工作流数据中提取参数（如果请求数据中没有）
+        if workflow_data and isinstance(workflow_data, dict):
+            # 尝试从工作流节点中提取参数
+            try:
+                # 检查新格式工作流（nodes数组）
+                if 'nodes' in workflow_data:
+                    for node in workflow_data.get('nodes', []):
+                        if isinstance(node, dict) and 'inputs' in node:
+                            inputs = node['inputs']
+                            # 提取常见参数
+                            if 'ckpt_name' in inputs and 'model_name' not in params:
+                                params['model_name'] = inputs['ckpt_name']
+                            if 'width' in inputs and 'width' not in params:
+                                params['width'] = inputs['width']
+                            if 'height' in inputs and 'height' not in params:
+                                params['height'] = inputs['height']
+                            if 'steps' in inputs and 'steps' not in params:
+                                params['steps'] = inputs['steps']
+                            if 'cfg' in inputs and 'cfg_scale' not in params:
+                                params['cfg_scale'] = inputs['cfg']
+                            if 'sampler_name' in inputs and 'sampler' not in params:
+                                params['sampler'] = inputs['sampler_name']
+                            if 'scheduler' in inputs and 'scheduler' not in params:
+                                params['scheduler'] = inputs['scheduler']
+                            if 'seed' in inputs and 'seed' not in params:
+                                params['seed'] = inputs['seed']
+                            if 'batch_size' in inputs and 'batch_size' not in params:
+                                params['batch_size'] = inputs['batch_size']
+
+                # 检查旧格式工作流（节点字典）
+                else:
+                    for node_id, node_data in workflow_data.items():
+                        if isinstance(node_data, dict) and 'inputs' in node_data:
+                            inputs = node_data['inputs']
+                            # 同样的参数提取逻辑
+                            if 'ckpt_name' in inputs and 'model_name' not in params:
+                                params['model_name'] = inputs['ckpt_name']
+                            # ... 其他参数提取逻辑类似
+
+            except Exception as e:
+                logger.warning(f"从工作流数据中提取参数失败: {e}")
+
+        # 设置默认值
+        params.setdefault('batch_size', 1)
+
+        logger.debug(f"提取的生成参数: {params}")
+        return params
+
 
 @celery_app.task(bind=True, base=BaseWorkflowTask, queue='text_to_image')
 def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -163,8 +233,13 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
     # 修复：确保使用API层传递的task_id，而不是Celery任务ID
     task_id = request_data.get('task_id')
     if not task_id:
-        raise Exception("任务ID缺失，无法执行任务")
-    
+        logger.error("任务ID缺失，无法执行任务")
+        return {
+            'status': 'failed',
+            'error': '任务ID缺失，无法执行任务',
+            'message': '任务ID缺失，无法执行任务'
+        }
+
     try:
         logger.info(f"开始执行文生图任务: {task_id}")
         
@@ -309,13 +384,20 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
 
         # 检查执行结果
         if result.status == TaskStatus.COMPLETED:
-            # 更新任务状态为完成
-            self.update_task_status(task_id, {
+            # 提取生成参数用于保存到数据库
+            generation_params = self._extract_generation_params(request_data, complete_workflow)
+
+            # 更新任务状态为完成，包含生成参数
+            update_data = {
                 'status': TaskStatus.COMPLETED.value,
                 'message': '文生图任务完成',
                 'progress': 100,
                 'result_data': result.result_data
-            })
+            }
+            # 添加生成参数
+            update_data.update(generation_params)
+
+            self.update_task_status(task_id, update_data)
 
             logger.info(f"文生图任务完成: {task_id}")
             return {
@@ -324,7 +406,24 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
                 'message': '文生图任务完成'
             }
         else:
-            raise WorkflowExecutionError(result.error_message or "工作流执行失败")
+            error_msg = result.error_message or "工作流执行失败"
+            logger.error(f"文生图任务执行失败 {task_id}: {error_msg}")
+
+            # 更新任务状态为失败
+            self.update_task_status(task_id, {
+                'status': TaskStatus.FAILED.value,
+                'message': f'任务执行失败: {error_msg}',
+                'error_message': error_msg,
+                'progress': 0
+            })
+
+            # 返回失败结果而不是抛出异常
+            return {
+                'status': 'failed',
+                'error': error_msg,
+                'message': f'任务执行失败: {error_msg}',
+                'task_id': task_id
+            }
             
     except Exception as e:
         logger.error(f"文生图任务执行失败 {task_id}: {e}")
@@ -351,7 +450,12 @@ def execute_image_to_video_task(self, request_data: Dict[str, Any]) -> Dict[str,
     """执行图生视频任务"""
     task_id = request_data.get('task_id')
     if not task_id:
-        raise Exception("任务ID缺失，无法执行任务")
+        logger.error("任务ID缺失，无法执行任务")
+        return {
+            'status': 'failed',
+            'error': '任务ID缺失，无法执行任务',
+            'message': '任务ID缺失，无法执行任务'
+        }
 
     try:
         logger.info(f"开始执行图生视频任务: {task_id}")
@@ -375,8 +479,9 @@ def execute_image_to_video_task(self, request_data: Dict[str, Any]) -> Dict[str,
         if image_path:
             # 如果是相对路径，转换为绝对路径
             if not os.path.isabs(image_path):
-                from ..api.routes import UPLOAD_DIR
-                full_image_path = os.path.join(UPLOAD_DIR, image_path)
+                from ..utils.path_utils import get_upload_dir
+                upload_dir = get_upload_dir()
+                full_image_path = os.path.join(upload_dir, image_path)
                 if os.path.exists(full_image_path):
                     request_data['image'] = full_image_path
                     logger.info(f"图片路径转换: {image_path} -> {full_image_path}")
@@ -401,16 +506,49 @@ def execute_image_to_video_task(self, request_data: Dict[str, Any]) -> Dict[str,
             'message': '工作流参数处理完成，正在提交到ComfyUI...'
         })
 
-        # 获取ComfyUI客户端
-        from ..core.comfyui_client import get_comfyui_client
-        client = get_comfyui_client()
+        # 执行工作流 - 使用与文生图任务相同的方式
+        import requests
+        import time
 
-        # 提交工作流到ComfyUI
+        # 从配置文件读取ComfyUI URL
+        config_manager = get_config_manager()
+        comfyui_config = config_manager.get_comfyui_config()
+        comfyui_host = comfyui_config.get('host', '127.0.0.1')
+        comfyui_port = comfyui_config.get('port', 8188)
+        comfyui_url = f"http://{comfyui_host}:{comfyui_port}"
+
         logger.info(f"提交工作流到ComfyUI: {task_id}")
-        prompt_id = client.queue_prompt(processed_workflow)
 
-        if not prompt_id:
-            raise Exception("提交工作流到ComfyUI失败")
+        # 提交工作流 - 增强错误处理
+        try:
+            logger.info(f"向ComfyUI提交工作流: {comfyui_url}/prompt")
+            response = requests.post(f"{comfyui_url}/prompt", json={"prompt": processed_workflow}, timeout=30)
+
+            if response.status_code != 200:
+                error_detail = f"状态码: {response.status_code}, 响应: {response.text[:500]}"
+                logger.error(f"ComfyUI API调用失败: {error_detail}")
+                raise Exception(f"ComfyUI API调用失败: {error_detail}")
+
+            response_data = response.json()
+            if "prompt_id" not in response_data:
+                logger.error(f"ComfyUI响应格式异常: {response_data}")
+                raise Exception("ComfyUI响应中缺少prompt_id")
+
+            prompt_id = response_data["prompt_id"]
+            logger.info(f"工作流已成功提交到ComfyUI，prompt_id: {prompt_id}")
+
+        except requests.exceptions.Timeout:
+            error_msg = f"ComfyUI连接超时 (URL: {comfyui_url})"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        except requests.exceptions.ConnectionError:
+            error_msg = f"无法连接到ComfyUI服务器 (URL: {comfyui_url})"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        except requests.exceptions.RequestException as e:
+            error_msg = f"ComfyUI请求失败: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
 
         # 更新进度
         self.update_task_status(task_id, {
@@ -419,13 +557,30 @@ def execute_image_to_video_task(self, request_data: Dict[str, Any]) -> Dict[str,
             'message': f'工作流已提交到ComfyUI，提示ID: {prompt_id}'
         })
 
-        # 等待任务完成
-        logger.info(f"等待ComfyUI任务完成: {prompt_id}")
-        result = client.wait_for_completion(prompt_id, timeout=300)  # 5分钟超时
+        # 等待完成
+        max_wait = 300  # 5分钟
+        start_time = time.time()
+        result_data = None
 
-        if not result or not result.get('success'):
-            error_msg = result.get('error', '未知错误') if result else 'ComfyUI任务执行失败'
-            raise Exception(f"ComfyUI任务执行失败: {error_msg}")
+        while time.time() - start_time < max_wait:
+            try:
+                history_response = requests.get(f"{comfyui_url}/history/{prompt_id}", timeout=10)
+                if history_response.status_code == 200:
+                    history = history_response.json()
+                    if prompt_id in history:
+                        # 任务完成
+                        result_data = history[prompt_id]
+                        logger.info(f"工作流执行完成: {prompt_id}")
+                        break
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"查询历史记录失败: {e}")
+
+            time.sleep(3)
+        else:
+            raise Exception("任务超时，ComfyUI可能处理时间过长")
+
+        if not result_data:
+            raise Exception("未获取到执行结果")
 
         # 更新进度
         self.update_task_status(task_id, {
@@ -434,8 +589,25 @@ def execute_image_to_video_task(self, request_data: Dict[str, Any]) -> Dict[str,
             'message': '视频生成完成，正在处理结果文件...'
         })
 
-        # 处理结果文件
-        output_files = result.get('files', [])
+        # 处理结果文件 - 从ComfyUI历史记录中提取文件信息
+        output_files = []
+        if 'outputs' in result_data:
+            for node_id, node_output in result_data['outputs'].items():
+                if 'videos' in node_output:
+                    for video_info in node_output['videos']:
+                        output_files.append({
+                            'filename': video_info['filename'],
+                            'subfolder': video_info.get('subfolder', ''),
+                            'type': video_info.get('type', 'output')
+                        })
+                elif 'images' in node_output:
+                    for image_info in node_output['images']:
+                        output_files.append({
+                            'filename': image_info['filename'],
+                            'subfolder': image_info.get('subfolder', ''),
+                            'type': image_info.get('type', 'output')
+                        })
+
         if not output_files:
             raise Exception("未生成任何输出文件")
 

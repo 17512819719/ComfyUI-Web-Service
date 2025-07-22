@@ -52,7 +52,8 @@ class ParameterMapper:
             'task_id', 'user_id', 'task_type', 'workflow_name', 'priority',
             'steps', 'cfg_scale', 'sampler', 'scheduler', 'seed',
             # 添加更多系统参数
-            'celery_task_id', 'created_at', 'updated_at', 'estimated_time'
+            'celery_task_id', 'created_at', 'updated_at', 'estimated_time',
+            'batch_id', 'checkpoint', 'model_name'  # 添加model_name到系统参数
         }
 
         # 调试日志：显示接收到的所有参数

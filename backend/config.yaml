@@ -26,18 +26,31 @@ nodes:
     enable_failover: true     # 启用故障转移
     max_retries: 3           # 最大重试次数
 
-  # 静态节点配置 - 先配置一台从机进行测试
+  # 静态节点配置 - 配置从机节点
   static_nodes:
+    # 从机节点1 - 请修改为实际的从机IP地址
     - node_id: "comfyui-worker-1"
-      host: "192.168.1.101"  # 修改为实际的从机IP地址
+      host: "192.168.111.6"  # TODO: 修改为实际的从机IP地址
       port: 8188
       max_concurrent: 4
-      capabilities: ["text_to_image"]
+      capabilities: ["text_to_image", "image_to_video"]  # 支持的任务类型
       metadata:
         location: "worker-server-1"
         gpu_model: "RTX 4090"
         priority: 1
         description: "主要工作节点"
+
+    # 从机节点2 - 可扩展配置 (可选)
+    # - node_id: "comfyui-worker-2"
+    #   host: "192.168.1.102"  # TODO: 修改为实际的从机IP地址
+    #   port: 8188
+    #   max_concurrent: 2
+    #   capabilities: ["text_to_image"]
+    #   metadata:
+    #     location: "worker-server-2"
+    #     gpu_model: "RTX 3080"
+    #     priority: 2
+    #     description: "备用工作节点"
 
   # 动态发现配置 (预留)
   dynamic_discovery:
@@ -114,7 +127,7 @@ task_types:
           checkpoint:
             node_id: "4"
             input_name: "ckpt_name"
-            default_value: "Realistic\\majicmix7.safetensors"
+            default_value: "SD\\realisticVisionV60B1_v51HyperVAE.safetensors"
             data_type: "string"
             description: "模型文件路径"
 

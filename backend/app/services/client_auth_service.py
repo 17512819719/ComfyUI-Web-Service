@@ -18,7 +18,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # JWT配置
 SECRET_KEY = "your-secret-key-here"  # 与主认证模块保持一致
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8小时，避免频繁过期
 
 
 class ClientAuthService:

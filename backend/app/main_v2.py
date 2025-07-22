@@ -134,20 +134,44 @@ async def check_system_dependencies():
 
     config_manager = get_config_manager()
 
-    # 检查Redis连接
+    # 检查Redis连接（带重试机制）
+    redis_available = False
     try:
         import redis
+        import time
         redis_config = config_manager.get_redis_config()
-        r = redis.Redis(
-            host=redis_config.get('host', 'localhost'),
-            port=redis_config.get('port', 6379),
-            db=redis_config.get('db', 0),
-            password=redis_config.get('password')
-        )
-        r.ping()
-        print("🔴 Redis: 已连接")
-    except Exception:
-        print("🟡 Redis: 不可用 (使用内存模式)")
+
+        # 重试3次，每次间隔1秒
+        for attempt in range(3):
+            try:
+                r = redis.Redis(
+                    host=redis_config.get('host', 'localhost'),
+                    port=redis_config.get('port', 6379),
+                    db=redis_config.get('db', 0),
+                    password=redis_config.get('password'),
+                    socket_connect_timeout=2,  # 连接超时2秒
+                    socket_timeout=2,          # 操作超时2秒
+                    retry_on_timeout=True
+                )
+                r.ping()
+                redis_available = True
+                break
+            except Exception as e:
+                if attempt < 2:  # 前两次失败时等待
+                    time.sleep(1)
+                else:
+                    # 最后一次失败，记录详细错误
+                    print(f"🟡 Redis: 连接失败 ({e})")
+
+        if redis_available:
+            print("🔴 Redis: 已连接")
+        else:
+            print("🟡 Redis: 不可用 (使用内存模式)")
+
+    except ImportError:
+        print("🟡 Redis: 模块未安装 (使用内存模式)")
+    except Exception as e:
+        print(f"🟡 Redis: 检查异常 ({e}) (使用内存模式)")
 
     # 检查ComfyUI连接
     try:
@@ -260,6 +284,23 @@ comfyui_output_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', '
 if os.path.exists(comfyui_output_dir):
     app.mount("/comfyui-output", StaticFiles(directory=comfyui_output_dir, check_dir=True, html=True), name="comfyui_output")
     logger.info(f"ComfyUI输出文件服务已挂载: /comfyui-output -> {comfyui_output_dir}")
+
+# 挂载前端静态文件
+client_dist_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'client', 'dist')
+if os.path.exists(client_dist_dir):
+    app.mount("/client", StaticFiles(directory=client_dist_dir, html=True), name="client")
+    logger.info(f"客户端静态文件已挂载: /client -> {client_dist_dir}")
+
+# 挂载前端静态文件
+client_dist_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'client', 'dist')
+if os.path.exists(client_dist_dir):
+    app.mount("/client", StaticFiles(directory=client_dist_dir, html=True), name="client")
+    logger.info(f"客户端静态文件已挂载: /client -> {client_dist_dir}")
+
+admin_dist_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'admin', 'dist')
+if os.path.exists(admin_dist_dir):
+    app.mount("/admin", StaticFiles(directory=admin_dist_dir, html=True), name="admin")
+    logger.info(f"管理端静态文件已挂载: /admin -> {admin_dist_dir}")
 
 # 导入新的异常处理模块
 try:

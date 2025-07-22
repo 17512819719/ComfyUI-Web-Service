@@ -13,14 +13,13 @@ from pathlib import Path
 
 def print_banner():
     """打印启动横幅"""
-    print("╔══════════════════════════════════════════════════════════════╗")
-    print("║                    🔄 Celery Worker 启动器                  ║")
-    print("║                                                              ║")
-    print("║  ⚡ 异步任务处理器                                           ║")
-    print("║  📊 实时日志监控                                             ║")
-    print("║  🎯 队列任务执行                                             ║")
-    print("║                                                              ║")
-    print("╚══════════════════════════════════════════════════════════════╝")
+    print("=" * 60)
+    print("                 Celery Worker 启动器                  ")
+    print("=" * 60)
+    print("  异步任务处理器")
+    print("  实时日志监控")
+    print("  队列任务执行")
+    print("=" * 60)
 
 def check_environment():
     """检查运行环境"""
@@ -103,8 +102,10 @@ def cleanup_celery_tasks():
         # 定义需要清理的队列和模式
         queue_patterns = [
             'text_to_image',
+            'image_to_video',
             'celery',
             '*text_to_image*',
+            '*image_to_video*',
             '*celery*',
             'kombu.pidbox.*',
             'celeryev.*'
@@ -235,7 +236,9 @@ def cleanup_celery_tasks():
                 f'*{problem_task_id}*',
                 'celery-task-meta-*',
                 '*text_to_image*',
-                '*execute_text_to_image*'
+                '*image_to_video*',
+                '*execute_text_to_image*',
+                '*execute_image_to_video*'
             ]
 
             for pattern in problem_patterns:
@@ -288,7 +291,7 @@ def check_celery_imports():
             print(f"📁 添加Python路径: {current_dir}")
 
         from app.queue.celery_app import get_celery_app
-        from app.queue.tasks import execute_text_to_image_task
+        from app.queue.tasks import execute_text_to_image_task, execute_image_to_video_task
 
         celery_app = get_celery_app()
         print(f"✅ Celery应用: {celery_app.main}")
@@ -297,8 +300,10 @@ def check_celery_imports():
         # 检查任务注册
         registered_tasks = list(celery_app.tasks.keys())
         text_tasks = [task for task in registered_tasks if 'text_to_image' in task]
+        video_tasks = [task for task in registered_tasks if 'image_to_video' in task]
         print(f"📋 已注册任务: {len(registered_tasks)} 个")
         print(f"🎨 文生图任务: {text_tasks}")
+        print(f"🎬 图生视频任务: {video_tasks}")
 
         return True
 
@@ -310,13 +315,13 @@ def check_celery_imports():
 
 def start_celery_worker(python_exe):
     """启动Celery Worker"""
-    print("\n🚀 启动Celery Worker...")
+    print("\n[启动] Celery Worker...")
     print("="*60)
-    print("🎯 Worker配置:")
-    print("   📊 日志级别: INFO")
-    print("   🏊 进程池: solo (Windows兼容)")
-    print("   📮 监听队列: text_to_image, celery")
-    print("   🔄 并发数: 1")
+    print("Worker配置:")
+    print("   日志级别: INFO")
+    print("   进程池: solo (Windows兼容)")
+    print("   监听队列: text_to_image, image_to_video, celery")
+    print("   并发数: 1")
     print("="*60)
 
     # 确保在backend目录中运行
@@ -334,17 +339,17 @@ def start_celery_worker(python_exe):
         "worker",
         "--loglevel=info",
         "--pool=solo",
-        "--queues=text_to_image,celery",
+        "--queues=text_to_image,image_to_video,celery",
         "--concurrency=1"
     ]
 
-    print(f"🔧 启动命令: {' '.join(cmd)}")
-    print(f"🔧 PYTHONPATH: {env.get('PYTHONPATH', 'Not set')}")
+    print(f"[配置] 启动命令: {' '.join(cmd)}")
+    print(f"[配置] PYTHONPATH: {env.get('PYTHONPATH', 'Not set')}")
     print("\n" + "="*60)
-    print("🎯 Celery Worker 启动中...")
+    print("Celery Worker 启动中...")
     print("="*60)
-    print("💡 提示: 按 Ctrl+C 停止Worker")
-    print("📊 以下是实时日志输出:")
+    print("提示: 按 Ctrl+C 停止Worker")
+    print("以下是实时日志输出:")
     print("-"*60)
     
     try:

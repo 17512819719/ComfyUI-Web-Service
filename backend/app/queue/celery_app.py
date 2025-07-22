@@ -25,18 +25,52 @@ else:
 # 创建Celery应用
 celery_app = Celery('comfyui_workflow_manager')
 
-# 如果Redis不可用，使用内存后端
+# 检查Redis可用性（带重试机制）
+redis_available = False
 try:
     import redis
-    r = redis.Redis(host=redis_host, port=redis_port, db=redis_db, password=redis_password)
-    r.ping()
-    # Redis可用，使用Redis作为broker和backend
-    final_broker_url = task_queue_config.get('broker_url', broker_url)
-    final_result_backend = task_queue_config.get('result_backend', result_backend)
-except:
-    # Redis不可用，使用内存后端
+    import time
+
+    # 重试3次检查Redis连接
+    for attempt in range(3):
+        try:
+            r = redis.Redis(
+                host=redis_host,
+                port=redis_port,
+                db=redis_db,
+                password=redis_password,
+                socket_connect_timeout=2,  # 连接超时2秒
+                socket_timeout=2,          # 操作超时2秒
+                retry_on_timeout=True
+            )
+            r.ping()
+            redis_available = True
+            break
+        except Exception:
+            if attempt < 2:  # 前两次失败时等待
+                time.sleep(0.5)
+
+    if redis_available:
+        # Redis可用，使用Redis作为broker和backend
+        final_broker_url = task_queue_config.get('broker_url', broker_url)
+        final_result_backend = task_queue_config.get('result_backend', result_backend)
+        print("[Celery] 使用Redis作为消息代理")
+    else:
+        # Redis不可用，使用内存后端
+        final_broker_url = 'memory://'
+        final_result_backend = 'cache+memory://'
+        print("[Celery] Redis不可用，使用内存模式")
+
+except ImportError:
+    # Redis模块未安装，使用内存后端
     final_broker_url = 'memory://'
     final_result_backend = 'cache+memory://'
+    print("[Celery] Redis模块未安装，使用内存模式")
+except Exception as e:
+    # 其他异常，使用内存后端
+    final_broker_url = 'memory://'
+    final_result_backend = 'cache+memory://'
+    print(f"[Celery] Redis检查异常 ({e})，使用内存模式")
     
 
 # 配置Celery
@@ -151,3 +185,7 @@ def cleanup_worker(sender, **kwargs):
 def get_celery_app():
     """获取Celery应用实例"""
     return celery_app
+
+
+# 确保Celery应用可以被直接导入
+app = celery_app

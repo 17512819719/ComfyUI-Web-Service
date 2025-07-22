@@ -379,28 +379,39 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
         # 标准化路径分隔符
         file_path = file_path.replace('\\', '/')
 
-        # 获取项目根目录
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        project_root = project_root.replace('\\', '/')
-
-        logger.debug(f"项目根目录: {project_root}")
-
-        # 检查是否在backend/outputs目录
-        if '/backend/outputs/' in file_path or '\\backend\\outputs\\' in file_path:
-            # 提取outputs之后的路径
-            match = re.search(r'outputs[/\\](.+)$', file_path)
+        # 尝试匹配backend/outputs目录
+        if '/backend/outputs/' in file_path or 'backend/outputs/' in file_path:
+            # 使用正则表达式匹配outputs之后的路径
+            match = re.search(r'backend/outputs/(.+)$', file_path)
             if match:
                 url_path = match.group(1)
                 logger.debug(f"Backend输出URL: /outputs/{url_path}")
                 return f"/outputs/{url_path}"
 
-        # 检查是否在ComfyUI/output目录
-        if '/ComfyUI/output/' in file_path or '\\ComfyUI\\output\\' in file_path:
-            # 提取output之后的路径
-            match = re.search(r'output[/\\](.+)$', file_path)
+        # 尝试匹配项目根目录下的outputs目录
+        if '/outputs/' in file_path:
+            # 使用正则表达式匹配最后一个outputs之后的路径
+            match = re.search(r'outputs/(.+)$', file_path)
+            if match:
+                url_path = match.group(1)
+                logger.debug(f"项目输出URL: /outputs/{url_path}")
+                return f"/outputs/{url_path}"
+
+        # 尝试匹配ComfyUI output目录
+        if '/ComfyUI/output/' in file_path or 'ComfyUI/output/' in file_path:
+            # 使用正则表达式匹配output之后的路径
+            match = re.search(r'ComfyUI/output/(.+)$', file_path)
             if match:
                 url_path = match.group(1)
                 logger.debug(f"ComfyUI输出URL: /comfyui-output/{url_path}")
+                return f"/comfyui-output/{url_path}"
+
+        # 尝试匹配任何output目录（兜底）
+        if '/output/' in file_path:
+            match = re.search(r'output/(.+)$', file_path)
+            if match:
+                url_path = match.group(1)
+                logger.debug(f"通用输出URL: /comfyui-output/{url_path}")
                 return f"/comfyui-output/{url_path}"
 
         # 默认返回None（使用下载接口作为兜底）
@@ -427,7 +438,10 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
         allowed_fields = {
             'status', 'priority', 'progress', 'message', 'error_message',
             'celery_task_id', 'node_id', 'estimated_time', 'actual_time',
-            'started_at', 'completed_at'
+            'started_at', 'completed_at',
+            # 生成参数字段
+            'model_name', 'width', 'height', 'steps', 'cfg_scale',
+            'sampler', 'scheduler', 'seed', 'batch_size'
         }
         return {k: v for k, v in data.items() if k in allowed_fields}
 
@@ -435,7 +449,10 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
         """过滤客户端任务表字段"""
         allowed_fields = {
             'status', 'progress', 'message', 'error_message',
-            'estimated_time', 'actual_time', 'started_at', 'completed_at'
+            'estimated_time', 'actual_time', 'started_at', 'completed_at',
+            # 生成参数字段
+            'model_name', 'width', 'height', 'steps', 'cfg_scale',
+            'sampler', 'scheduler', 'seed', 'batch_size'
         }
         return {k: v for k, v in data.items() if k in allowed_fields}
 

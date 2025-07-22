@@ -2,24 +2,33 @@
 
 一个基于 FastAPI 和 Celery 的 ComfyUI 分布式 Web 服务系统，支持多种 AI 内容生成任务的统一管理和调度。
 
+## 📋 快速导航
+
+- [🚀 快速开始](#-快速开始) - Docker 一键部署 / 传统部署
+- [🗄️ 数据库管理](#️-数据库管理) - 迁移系统和数据库架构
+- [🐳 Docker 部署](#-docker-部署) - 容器化部署指南
+- [⚙️ 配置说明](#️-配置说明) - 系统配置和工作流管理
+- [🌐 访问服务](#-访问服务) - 服务地址和功能介绍
+- [📁 项目结构](#-项目结构) - 完整的目录结构说明
+- [🔧 高级功能](#-高级功能) - 数据库迁移、Docker管理等
+- [🚨 故障排除](#-故障排除) - 常见问题和解决方案
+
 ## 🌟 特性
 
-- **多模态内容生成**: 支持文生图、SDXL 等多种 AI 生成任务
-- **分布式架构**: 支持一台主机调度器 + 多台从机ComfyUI节点的分布式部署
-- **智能负载均衡**: 多种负载均衡策略，自动任务分发和故障转移
-- **节点管理**: 自动节点发现、健康检查、状态监控
-- **配置驱动**: 通过 YAML 配置文件管理工作流和参数映射
-- **RESTful API**: 完整的 REST API 接口，支持任务提交、状态查询、结果获取
-- **Web 界面**: 提供美观的 HTML 客户端和 Vue.js 管理后台
-- **实时监控**: WebSocket 实时任务进度监控和集群状态监控
-- **任务管理**: 支持任务优先级、批量处理、状态追踪
-- **局域网访问**: 支持局域网内多设备访问
-- **高可用性**: 故障自动检测、任务重新分配、服务自愈
-- **身份认证**: 支持客户端身份认证和访问控制
-- **数据库支持**: 集成MySQL数据库，支持任务历史和用户管理
-- **图生视频**: 支持图像到视频的转换功能
-- **SDXL支持**: 完整支持SDXL模型的文生图功能
-- **数据同步**: 支持多节点间的数据自动同步
+- 🎨 **多模态内容生成**: 支持文生图、SDXL、图生视频等多种 AI 生成任务
+- 🏗️ **分布式架构**: 支持一台主机调度器 + 多台从机ComfyUI节点的分布式部署
+- ⚖️ **智能负载均衡**: 多种负载均衡策略，自动任务分发和故障转移
+- 🔧 **节点管理**: 自动节点发现、健康检查、状态监控
+- 📝 **配置驱动**: 通过 YAML 配置文件管理工作流和参数映射
+- 🌐 **RESTful API**: 完整的 REST API 接口，支持任务提交、状态查询、结果获取
+- 💻 **双端界面**: HTML 客户端 + Vue.js 管理后台，支持局域网访问
+- 📊 **实时监控**: WebSocket 实时任务进度监控和集群状态监控
+- 📋 **任务管理**: 支持任务优先级、批量处理、状态追踪
+- 🔐 **身份认证**: 客户端用户管理和会话控制
+- 🗄️ **三数据库架构**: 客户端、管理端、共享数据分离存储
+- 🔄 **数据库迁移**: 版本化的数据库结构管理，支持自动迁移
+- 🐳 **完整容器化**: Docker + Docker Compose 一键部署
+- 🚀 **高可用性**: 故障自动检测、任务重新分配、服务自愈
 
 ## 🏗️ 系统架构
 
@@ -61,6 +70,8 @@
 - **Load Balancer**: 智能负载均衡和任务分发
 - **Health Monitor**: 节点健康检查和故障检测
 - **Config Manager**: 配置管理和热更新
+- **Database Migration**: 版本化数据库结构管理
+- **Container Orchestration**: Docker 容器编排和部署
 
 ## 📋 系统要求
 
@@ -74,12 +85,45 @@
 - **ComfyUI**: 最新版本
 - **Redis**: 3.2.100+
 - **MySQL**: 8.0+
+- **Docker**: 20.10+ (推荐容器化部署)
+- **Docker Compose**: 2.0+
 - **Node.js**: 16+ (用于前端开发)
 
 ## 🚀 快速开始
 
-### 1. 环境准备
+### 方式一：Docker 部署（推荐）
 
+#### 1. 克隆项目
+```bash
+git clone <repository-url>
+cd ComfyUI-Web-Service
+```
+
+#### 2. 配置环境变量
+```bash
+cd docker/
+cp .env .env.local
+# 编辑 .env.local 文件，修改数据库密码、ComfyUI节点地址等配置
+```
+
+#### 3. 一键部署
+```bash
+# 构建并启动所有服务
+./deploy.sh build
+./deploy.sh start -d
+
+# 查看服务状态
+./deploy.sh status
+```
+
+#### 4. 访问服务
+- 客户端界面: http://localhost:8001
+- 管理后台: http://localhost:8002
+- API 文档: http://localhost:8000/docs
+
+### 方式二：传统部署
+
+#### 1. 环境准备
 ```bash
 # 克隆项目
 git clone <repository-url>
@@ -91,193 +135,286 @@ python -m venv .venv
 # source .venv/bin/activate  # Linux/Mac
 
 # 安装依赖
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
-### 2. 数据库配置
+#### 2. 数据库配置
 
-在启动服务之前，需要先配置并初始化数据库：
+配置 `backend/config.yaml` 中的数据库连接信息，然后初始化数据库：
 
 ```bash
-# 1. 确保MySQL服务已启动
+# 使用数据库管理工具初始化
+python database/tools/db_manager.py init
 
-# 2. 执行数据库初始化脚本
-cd database
-mysql -u your_username -p < setup_databases.sql
-mysql -u your_username -p < migrations/add_client_auth_fields.sql
-
-# 3. 配置数据库连接
-# 编辑 backend/config.yaml 添加数据库配置：
+# 这会自动：
+# 1. 创建数据库表结构
+# 2. 执行所有迁移
+# 3. 初始化默认数据
 ```
 
-```yaml
-# 数据库配置
-database:
-  host: "localhost"
-  port: 3306
-  user: "your_username"
-  password: "your_password"
-  database: "comfyui_service"
+#### 3. 启动服务
+
+```bash
+# 启动 Redis
+redis-server
+
+# 启动 Celery Worker
+cd backend
+celery -A app.queue.celery_app worker --loglevel=info
+
+# 启动 FastAPI 服务
+cd backend
+uvicorn app.main_v2:app --host 0.0.0.0 --port 8000 --reload
+
+# 启动客户端服务
+cd scripts
+python start_client.py
+
+# 启动管理后台服务
+cd scripts
+python start_admin.py
+
+## 🗄️ 数据库管理
+
+### 数据库架构
+
+项目采用**三数据库分离架构**：
+
+- **客户端数据库** (comfyui_client): 存储客户端用户数据和基础任务信息
+- **管理后台数据库** (comfyui_admin): 存储系统管理、配置和监控数据
+- **共享数据库** (comfyui_shared): 存储需要跨系统访问的核心数据
+
+### 数据库迁移系统
+
+项目包含完整的数据库迁移系统，支持版本化的数据库结构管理：
+
+```bash
+# 查看迁移状态
+python database/tools/db_manager.py migration-status
+
+# 运行迁移
+python database/tools/db_manager.py migrate
+
+# 创建新的迁移文件
+python database/tools/create_migration.py create add_new_field --database client --description "添加新字段"
 ```
 
-### 3. 身份认证配置
+### 目录结构
 
-编辑 `backend/config.yaml` 添加认证配置：
-
-```yaml
-# 认证配置
-auth:
-  enable_client_auth: true
-  token_expire_minutes: 1440  # 24小时
-  secret_key: "your-secret-key"
+```
+database/
+├── README.md                    # 数据库管理说明
+├── schema/                      # 数据库结构文件
+│   ├── client_database.sql      # 客户端数据库结构
+│   ├── admin_database.sql       # 管理后台数据库结构
+│   └── shared_database.sql      # 共享数据库结构
+├── migrations/                  # 数据库迁移文件
+└── tools/                       # 数据库管理工具
+    ├── db_manager.py            # 主要数据库管理工具
+    ├── migration_manager.py     # 迁移管理器
+    └── create_migration.py      # 创建迁移文件工具
 ```
 
-### 4. 配置系统
+## 🐳 Docker 部署
+
+### Docker Compose 配置
+
+项目提供完整的 Docker 容器化解决方案：
+
+```
+docker/
+├── Dockerfile                   # 主应用镜像
+├── docker-compose.yml           # 开发环境配置
+├── docker-compose.prod.yml      # 生产环境配置
+├── deploy.sh                    # 部署管理脚本
+├── start.sh                     # 容器启动脚本
+├── .env                         # 环境变量模板
+└── ...
+```
+
+### 部署命令
+
+```bash
+# 开发环境部署
+cd docker/
+./deploy.sh build
+./deploy.sh start -d
+
+# 生产环境部署
+./deploy.sh -p build
+./deploy.sh -p start -d
+
+# 查看服务状态
+./deploy.sh status
+
+# 查看日志
+./deploy.sh logs
+
+# 运行数据库迁移
+./deploy.sh migrate
+
+# 备份数据
+./deploy.sh backup /path/to/backup
+```
+
+### 服务端口
+
+- **FastAPI 主服务**: http://localhost:8000
+- **客户端界面**: http://localhost:8001
+- **管理后台**: http://localhost:8002
+- **API 文档**: http://localhost:8000/docs
+
+## ⚙️ 配置说明
+
+### 主配置文件
 
 编辑 `backend/config.yaml` 文件：
-
 ```yaml
-# ComfyUI配置
-comfyui:
-  host: "127.0.0.1"
-  port: 8188
-  output_dir: "outputs"  # 输出目录，支持相对路径和绝对路径
+# MySQL 数据库配置
+mysql:
+  client:
+    host: localhost
+    port: 3306
+    user: root
+    password: "123456"
+    database: comfyui_client
+  admin:
+    host: localhost
+    port: 3306
+    user: root
+    password: "123456"
+    database: comfyui_admin
+  shared:
+    host: localhost
+    port: 3306
+    user: root
+    password: "123456"
+    database: comfyui_shared
 
-# Redis配置
+# Redis 配置
 redis:
-  host: "localhost"
+  host: localhost
   port: 6379
   db: 0
+
+# ComfyUI 节点配置
+nodes:
+  static_nodes:
+    - node_id: "comfyui-worker-1"
+      host: "192.168.1.101"  # ComfyUI 服务器IP
+      port: 8188
+      max_concurrent: 4
+      capabilities: ["text_to_image", "image_to_video"]
 
 # 工作流配置
 task_types:
   text_to_image:
     workflows:
       sd_basic:
-        workflow_file: "workflows/text_to_image/文生图.json"  # 支持相对路径
+        workflow_file: "workflows/text_to_image/文生图.json"
+  image_to_video:
+    workflows:
+      svd_basic:
+        workflow_file: "workflows/image_to_video/图生视频.json"
 ```
 
-### 5. 启动服务
+## 🌐 访问服务
 
-#### 单机模式
+### 服务地址
 
-使用一键启动脚本：
-
-```bash
-# Windows
-start_all.bat
-
-# 或手动启动
-cd backend
-python -m uvicorn app.main_v2:app --host 0.0.0.0 --port 8000
-```
-
-#### 分布式模式
-
-1. **配置分布式节点**
-
-编辑 `backend/config.yaml`：
-
-```yaml
-# 分布式节点配置
-nodes:
-  discovery_mode: "static"
-
-  # 负载均衡配置
-  load_balancing:
-    strategy: "least_loaded"  # 负载均衡策略
-    enable_failover: true
-    max_retries: 3
-
-  # 静态节点配置
-  static_nodes:
-    - node_id: "comfyui-worker-1"
-      host: "192.168.1.101"  # 从机IP地址
-      port: 8188
-      max_concurrent: 4
-      capabilities: ["text_to_image"]
-      metadata:
-        location: "worker-server-1"
-        gpu_model: "RTX 4090"
-```
-
-2. **启动主机调度器**
-
-```bash
-# Windows
-start_distributed.bat
-
-# 或手动启动
-cd backend
-python -m uvicorn app.main_v2:app --host 0.0.0.0 --port 8000
-```
-
-3. **启动从机ComfyUI**
-
-在每台从机服务器上：
-
-```bash
-# 启动ComfyUI服务
-cd ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
-```
-
-4. **验证部署**
-
-```bash
-# 运行系统验证脚本
-cd backend
-python verify_system.py
-
-# 运行分布式功能测试
-python test_distributed.py
-```
-
-详细的分布式部署指南请参考：[DISTRIBUTED_DEPLOYMENT.md](DISTRIBUTED_DEPLOYMENT.md)
-
-### 6. 访问服务
-
-- **Web 客户端**: http://localhost:8000/client 或打开 `Client/Client-ComfyUI.html`
-- **管理后台**: http://localhost:8000/admin (Vue.js管理界面，支持节点管理)
+- **客户端界面**: http://localhost:8001
+- **管理后台**: http://localhost:8002
 - **API 文档**: http://localhost:8000/docs
-- **健康检查**: http://localhost:8000/api/health
+- **健康检查**: http://localhost:8000/health
 
-#### 管理后台功能
+### 管理后台功能
 
 - 📊 **仪表板**: 系统概览和实时统计
 - 🖥️ **节点管理**: 查看节点状态、负载、健康检查
 - 📋 **任务管理**: 任务列表、状态监控、历史记录
 - 👥 **用户管理**: 用户权限和访问控制
 - ⚙️ **系统配置**: 负载均衡策略、系统参数
+- 🗄️ **数据库管理**: 迁移状态、数据统计
 
 ## 📁 项目结构
 
 ```
 ComfyUI-Web-Service/
-├── backend/                    # 后端服务
-│   ├── app/                   
-│   │   ├── admin_api/        # 管理后台API
-│   │   ├── api/              # 客户端API
-│   │   ├── auth/             # 认证相关
-│   │   ├── core/             # 核心业务逻辑
-│   │   ├── database/         # 数据库模型和DAO
-│   │   ├── processors/       # 任务处理器
-│   │   ├── queue/           # Celery任务队列
-│   │   ├── services/        # 业务服务层
-│   │   └── utils/           # 工具函数
-├── database/                 # 数据库脚本
-│   ├── migrations/          # 数据库迁移脚本
-│   ├── setup_databases.sql  # 数据库初始化
-│   └── README.md           # 数据库说明
-├── frontend/                 # 前端项目
-│   └── admin/               # Vue.js 管理后台
-├── Client/                  # HTML 客户端
-├── scripts/                 # 启动和管理脚本
-├── start_all.bat           # 一键启动脚本
-└── README.md               # 项目文档
+├── README.md                           # 项目说明
+├── requirements.txt                    # Python依赖
+├── backend/                            # 后端应用
+│   ├── config.yaml                     # 主配置文件
+│   ├── app/                            # 应用核心代码
+│   │   ├── admin_api/                  # 管理后台API
+│   │   ├── api/                        # 客户端API
+│   │   ├── auth/                       # 认证相关
+│   │   ├── core/                       # 核心业务逻辑
+│   │   ├── database/                   # 数据库模型和连接
+│   │   ├── processors/                 # 任务处理器
+│   │   ├── queue/                      # Celery任务队列
+│   │   ├── services/                   # 业务服务层
+│   │   └── utils/                      # 工具函数
+│   ├── outputs/                        # 生成文件输出目录
+│   ├── uploads/                        # 用户上传文件目录
+│   └── workflows/                      # ComfyUI工作流文件
+├── frontend/                           # 前端应用
+│   ├── client/                         # 客户端界面
+│   └── admin/                          # 管理后台界面 (Vue.js)
+├── database/                           # 数据库管理 ⭐
+│   ├── README.md                       # 数据库使用说明
+│   ├── setup_databases.sql             # 数据库初始化脚本
+│   ├── schema/                         # 数据库结构文件
+│   │   ├── client_database.sql         # 客户端数据库结构
+│   │   ├── admin_database.sql          # 管理后台数据库结构
+│   │   └── shared_database.sql         # 共享数据库结构
+│   ├── migrations/                     # 数据库迁移文件
+│   └── tools/                          # 数据库管理工具
+│       ├── db_manager.py               # 主要数据库管理工具
+│       ├── migration_manager.py        # 迁移管理器
+│       └── create_migration.py         # 创建迁移文件工具
+├── docker/                             # Docker容器化配置 ⭐
+│   ├── Dockerfile                      # 主应用镜像
+│   ├── docker-compose.yml             # 开发环境配置
+│   ├── docker-compose.prod.yml        # 生产环境配置
+│   ├── deploy.sh                       # 部署管理脚本
+│   ├── start.sh                        # 容器启动脚本
+│   └── ...
+├── scripts/                            # 启动脚本
+└── docs/                               # 文档
+    ├── Docker容器化部署指南.md
+    └── 项目结构说明.md
 ```
 
-## 🔧 配置说明
+## 🔧 高级功能
+
+### 数据库迁移
+
+```bash
+# 查看迁移状态
+python database/tools/db_manager.py migration-status
+
+# 创建新迁移
+python database/tools/create_migration.py create add_new_field --database client
+
+# 执行迁移
+python database/tools/db_manager.py migrate
+```
+
+### Docker 管理
+
+```bash
+# 查看服务状态
+./docker/deploy.sh status
+
+# 查看日志
+./docker/deploy.sh logs
+
+# 备份数据
+./docker/deploy.sh backup
+
+# 更新服务
+./docker/deploy.sh update
+```
 
 ### 工作流配置
 
@@ -288,7 +425,7 @@ task_types:
   text_to_image:
     workflows:
       sd_basic:
-        workflow_file: "path/to/workflow.json"
+        workflow_file: "workflows/text_to_image/文生图.json"
         parameter_mapping:
           prompt:
             node_id: "314"
@@ -390,7 +527,35 @@ GET /api/v2/admin/performance/tasks
 
 ## 🚨 故障排除
 
-### 常见问题
+### Docker 环境问题
+
+1. **容器启动失败**
+   ```bash
+   # 查看容器日志
+   ./docker/deploy.sh logs
+
+   # 检查服务状态
+   ./docker/deploy.sh status
+   ```
+
+2. **数据库连接失败**
+   ```bash
+   # 检查数据库容器状态
+   docker-compose ps mysql
+
+   # 查看数据库日志
+   docker-compose logs mysql
+   ```
+
+3. **端口冲突**
+   ```bash
+   # 修改 .env 文件中的端口配置
+   FASTAPI_PORT=8080
+   CLIENT_PORT=8081
+   ADMIN_PORT=8082
+   ```
+
+### 传统部署问题
 
 1. **ComfyUI 连接失败**
    - 检查 ComfyUI 是否正常运行
@@ -406,9 +571,13 @@ GET /api/v2/admin/performance/tasks
    - 查看 Celery Worker 日志
 
 4. **数据库连接问题**
-   - 检查MySQL服务状态
-   - 验证数据库用户权限
-   - 确认连接字符串正确
+   ```bash
+   # 检查数据库状态
+   python database/tools/db_manager.py status
+
+   # 运行迁移
+   python database/tools/db_manager.py migrate
+   ```
 
 5. **认证失败**
    - 检查token是否过期
@@ -420,6 +589,7 @@ GET /api/v2/admin/performance/tasks
 - 调整 Celery Worker 数量
 - 配置 Redis 内存限制
 - 优化工作流参数
+- 使用 Docker 资源限制
 
 ## 🤝 贡献指南
 

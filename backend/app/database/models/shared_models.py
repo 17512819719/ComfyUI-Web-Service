@@ -18,6 +18,18 @@ class GlobalTask(Base, TimestampMixin):
     workflow_name = Column(String(100), nullable=False, comment='工作流名称')
     prompt = Column(Text, comment='正向提示词')
     negative_prompt = Column(Text, comment='反向提示词')
+
+    # 生成参数
+    model_name = Column(String(200), comment='使用的模型名称')
+    width = Column(Integer, comment='图片宽度')
+    height = Column(Integer, comment='图片高度')
+    steps = Column(Integer, comment='采样步数')
+    cfg_scale = Column(DECIMAL(4, 2), comment='CFG引导强度')
+    sampler = Column(String(50), comment='采样器')
+    scheduler = Column(String(50), comment='调度器')
+    seed = Column(BigInteger, comment='随机种子')
+    batch_size = Column(Integer, default=1, comment='批量大小')
+
     status = Column(String(20), default='queued', comment='任务状态')
     priority = Column(Integer, default=1, comment='任务优先级')
     progress = Column(DECIMAL(5, 2), default=0.00, comment='进度百分比')

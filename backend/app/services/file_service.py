@@ -75,18 +75,15 @@ class FileService:
             
             # 保存到客户端上传表
             client_upload = self.client_upload_dao.create(
-                upload_id=file_id,
+                file_id=file_id,
                 client_id=client_id,
                 original_name=clean_filename(original_filename),
-                file_name=unique_filename,
                 file_path=file_path,
                 file_size=file_size,
                 mime_type=mime_type,
-                file_hash=file_hash,
-                upload_type=file_type,
                 width=width,
                 height=height,
-                status='completed'
+                is_processed=False
             )
             
             if not client_upload:
@@ -107,8 +104,7 @@ class FileService:
                 file_hash=file_hash,
                 file_type=file_type,
                 width=width,
-                height=height,
-                status='active'
+                height=height
             )
             
             logger.info(f"文件上传成功: {original_filename} -> {file_path}")
@@ -129,23 +125,23 @@ class FileService:
             logger.error(f"文件上传失败: {e}")
             return None
     
-    def get_user_files(self, client_id: str, file_type: str = None, 
+    def get_user_files(self, client_id: str, file_type: str = None,
                       limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """获取用户上传的文件列表"""
         try:
             with self.client_upload_dao.get_session() as session:
                 query = session.query(ClientUpload).filter(
-                    ClientUpload.client_id == client_id,
-                    ClientUpload.status == 'completed'
+                    ClientUpload.client_id == client_id
                 )
-                
-                if file_type:
-                    query = query.filter(ClientUpload.upload_type == file_type)
-                
+
+                # 由于数据库表中没有upload_type字段，暂时忽略file_type过滤
+                # if file_type:
+                #     query = query.filter(ClientUpload.upload_type == file_type)
+
                 uploads = query.order_by(ClientUpload.created_at.desc()).offset(offset).limit(limit).all()
-                
+
                 return [self._upload_to_dict(upload) for upload in uploads]
-                
+
         except Exception as e:
             logger.error(f"获取用户文件失败: {e}")
             return []
@@ -156,23 +152,23 @@ class FileService:
             # 先从客户端上传表查询
             with self.client_upload_dao.get_session() as session:
                 upload = session.query(ClientUpload).filter(
-                    ClientUpload.upload_id == file_id
+                    ClientUpload.file_id == file_id
                 ).first()
-                
+
                 if upload:
                     return self._upload_to_dict(upload)
-            
+
             # 如果客户端表没有，从全局文件表查询
             with self.global_file_dao.get_session() as session:
                 file_record = session.query(GlobalFile).filter(
                     GlobalFile.file_id == file_id
                 ).first()
-                
+
                 if file_record:
                     return self._global_file_to_dict(file_record)
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"获取文件信息失败: {e}")
             return None
@@ -183,34 +179,34 @@ class FileService:
             # 获取文件信息
             with self.client_upload_dao.get_session() as session:
                 upload = session.query(ClientUpload).filter(
-                    ClientUpload.upload_id == file_id,
+                    ClientUpload.file_id == file_id,
                     ClientUpload.client_id == client_id
                 ).first()
-                
+
                 if not upload:
                     return False
-                
+
                 # 删除物理文件
                 if os.path.exists(upload.file_path):
                     os.remove(upload.file_path)
-                
-                # 更新数据库状态
-                upload.status = 'deleted'
+
+                # 由于数据库表中没有status字段，直接删除记录
+                session.delete(upload)
                 session.commit()
-            
-            # 同步更新全局文件表
+
+            # 同步更新全局文件表 - 直接删除记录
             with self.global_file_dao.get_session() as session:
                 file_record = session.query(GlobalFile).filter(
                     GlobalFile.file_id == file_id
                 ).first()
-                
+
                 if file_record:
-                    file_record.status = 'deleted'
+                    session.delete(file_record)
                     session.commit()
-            
+
             logger.info(f"文件删除成功: {file_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"文件删除失败: {e}")
             return False
@@ -218,16 +214,16 @@ class FileService:
     def _upload_to_dict(self, upload: ClientUpload) -> Dict[str, Any]:
         """将上传记录转换为字典"""
         return {
-            'file_id': upload.upload_id,
+            'file_id': upload.file_id,
             'original_name': upload.original_name,
-            'file_name': upload.file_name,
+            'file_name': os.path.basename(upload.file_path),  # 从路径中提取文件名
             'file_path': upload.file_path,
             'file_size': upload.file_size,
             'mime_type': upload.mime_type,
-            'file_type': upload.upload_type,
+            'file_type': 'image',  # 默认为image类型
             'width': upload.width,
             'height': upload.height,
-            'status': upload.status,
+            'status': 'completed' if upload.is_processed else 'pending',
             'upload_time': upload.created_at.isoformat() if upload.created_at else None
         }
     
