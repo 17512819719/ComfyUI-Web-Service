@@ -8,6 +8,27 @@ comfyui:
   output_dir: "outputs"
   timeout: 300  # 请求超时时间（秒）
 
+# 分布式配置
+distributed:
+  enabled: true  # 启用分布式模式
+
+  # 文件管理配置
+  file_management:
+    proxy_output_dir: "outputs/distributed"  # 主机代理输出目录
+    enable_file_cache: true                  # 启用文件缓存
+    cache_ttl: 3600                         # 缓存过期时间(秒)
+    max_cache_size: "1GB"                   # 最大缓存大小
+
+  # 节点同步配置
+  sync:
+    enable_file_sync: false  # 是否启用文件同步到主机
+    sync_interval: 300       # 同步间隔(秒)
+    sync_patterns:           # 同步文件模式
+      - "*.png"
+      - "*.jpg"
+      - "*.mp4"
+      - "*.gif"
+
 # 分布式节点配置
 nodes:
   # 节点发现模式: static(静态配置) | dynamic(动态发现) | hybrid(混合模式)

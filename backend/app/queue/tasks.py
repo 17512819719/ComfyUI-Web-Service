@@ -104,7 +104,91 @@ class BaseWorkflowTask(Task):
         except Exception as e:
             logger.error(f"更新任务状态失败 [{task_id}]: {e}")
 
-    def _process_comfyui_result(self, result_data: Dict, task_id: str) -> Dict:
+    def _select_comfyui_node_for_task(self, task_id: str, task_type: str) -> tuple[str, str]:
+        """为任务选择ComfyUI节点 - 支持分布式模式
+
+        Returns:
+            tuple: (comfyui_url, node_id)
+        """
+        try:
+            from ..core.config_manager import get_config_manager
+            config_manager = get_config_manager()
+
+            # 检查是否为分布式模式
+            if config_manager.is_distributed_mode():
+                # 分布式模式：使用节点管理器选择最佳节点
+                try:
+                    from ..core.node_manager import get_node_manager
+                    from ..core.load_balancer import get_load_balancer
+                    from ..core.base import TaskType
+
+                    # 获取节点管理器和负载均衡器
+                    node_manager = get_node_manager()
+                    load_balancer = get_load_balancer()
+
+                    # 转换任务类型
+                    task_type_enum = TaskType.TEXT_TO_IMAGE if task_type == 'text_to_image' else TaskType.IMAGE_TO_VIDEO
+
+                    # 获取可用节点
+                    import asyncio
+                    available_nodes = asyncio.run(node_manager.get_available_nodes(task_type_enum))
+
+                    if not available_nodes:
+                        logger.warning("分布式模式：没有可用的ComfyUI节点，降级到单机模式")
+                        raise Exception("没有可用节点")
+
+                    # 使用负载均衡器选择节点
+                    selected_node = load_balancer.select_node(available_nodes, task_type_enum)
+
+                    if not selected_node:
+                        logger.warning("分布式模式：负载均衡器无法选择节点，降级到单机模式")
+                        raise Exception("负载均衡器选择失败")
+
+                    # 分配任务到节点
+                    asyncio.run(node_manager.assign_task_to_node(selected_node.node_id, task_id))
+
+                    logger.info(f"分布式模式：任务 {task_id} 分配到节点 {selected_node.node_id} ({selected_node.url})")
+                    return selected_node.url, selected_node.node_id
+
+                except Exception as e:
+                    logger.error(f"分布式节点选择失败: {e}")
+                    # 降级到单机模式
+                    pass
+
+            # 单机模式或分布式降级：使用配置文件中的ComfyUI配置
+            comfyui_config = config_manager.get_comfyui_config()
+            comfyui_host = comfyui_config.get('host', '127.0.0.1')
+            comfyui_port = comfyui_config.get('port', 8188)
+            comfyui_url = f"http://{comfyui_host}:{comfyui_port}"
+
+            logger.info(f"单机模式：使用配置文件ComfyUI实例 {comfyui_url}")
+            return comfyui_url, "default"
+
+        except Exception as e:
+            logger.error(f"选择ComfyUI节点失败: {e}")
+            # 最终降级到默认配置
+            return "http://127.0.0.1:8188", "default"
+
+    def _cleanup_node_assignment(self, task_id: str, node_id: str):
+        """清理节点任务分配"""
+        if node_id == "default":
+            return  # 单机模式，无需清理
+
+        try:
+            from ..core.config_manager import get_config_manager
+            config_manager = get_config_manager()
+
+            if config_manager.is_distributed_mode():
+                from ..core.node_manager import get_node_manager
+                node_manager = get_node_manager()
+
+                import asyncio
+                asyncio.run(node_manager.remove_task_from_node(node_id, task_id))
+                logger.debug(f"已清理节点任务分配: {task_id} <- {node_id}")
+        except Exception as e:
+            logger.warning(f"清理节点任务分配失败: {e}")
+
+    def _process_comfyui_result(self, result_data: Dict, task_id: str, node_id: str = "default") -> Dict:
         """处理ComfyUI返回的结果数据，提取文件路径"""
         import os  # 添加os导入
         try:
@@ -121,18 +205,28 @@ class BaseWorkflowTask(Task):
                             filename = image_info.get('filename')
                             subfolder = image_info.get('subfolder', '')
                             if filename:
-                                # 构建完整文件路径
-                                if subfolder:
-                                    file_path = os.path.join(output_dir, subfolder, filename)
-                                else:
-                                    file_path = os.path.join(output_dir, filename)
-
-                                # 检查文件是否存在
-                                if os.path.exists(file_path):
+                                # 在分布式模式下，构建特殊的文件路径标识
+                                if node_id != "default":
+                                    # 分布式模式：使用相对路径，代理服务会处理
+                                    if subfolder:
+                                        file_path = f"{subfolder}/{filename}"
+                                    else:
+                                        file_path = filename
                                     files.append(file_path)
-                                    logger.info(f"找到输出文件: {file_path}")
+                                    logger.info(f"分布式模式文件路径: {file_path} (节点: {node_id})")
                                 else:
-                                    logger.warning(f"输出文件不存在: {file_path}")
+                                    # 单机模式：使用完整本地路径
+                                    if subfolder:
+                                        file_path = os.path.join(output_dir, subfolder, filename)
+                                    else:
+                                        file_path = os.path.join(output_dir, filename)
+
+                                    # 检查文件是否存在
+                                    if os.path.exists(file_path):
+                                        files.append(file_path)
+                                        logger.info(f"找到输出文件: {file_path}")
+                                    else:
+                                        logger.warning(f"输出文件不存在: {file_path}")
 
             # 不再复制文件，直接使用ComfyUI生成的文件路径
             # 只记录文件路径，不进行额外的文件操作
@@ -226,6 +320,393 @@ class BaseWorkflowTask(Task):
         logger.debug(f"提取的生成参数: {params}")
         return params
 
+    def _execute_text_to_image_logic(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """执行文生图核心逻辑"""
+        task_id = request_data.get('task_id')
+        if not task_id:
+            logger.error("任务ID缺失，无法执行任务")
+            return {
+                'status': 'failed',
+                'error': '任务ID缺失，无法执行任务',
+                'message': '任务ID缺失，无法执行任务'
+            }
+
+        try:
+            logger.info(f"开始执行文生图任务: {task_id}")
+
+            # 更新任务状态为处理中
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 0,
+                'message': '正在处理文生图任务...'
+            })
+
+            # 获取工作流参数处理器
+            from ..core.workflow_parameter_processor import get_workflow_parameter_processor
+            processor = get_workflow_parameter_processor()
+
+            # 获取工作流名称，默认使用配置的默认工作流
+            workflow_name = request_data.get('workflow_name', 'sd_basic')
+
+            # 更新进度
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 10,
+                'message': '正在处理工作流参数...'
+            })
+
+            # 处理工作流参数
+            logger.info(f"处理工作流参数: {workflow_name}")
+            complete_workflow = processor.process_workflow_request(workflow_name, request_data)
+
+            if not complete_workflow:
+                raise Exception(f"工作流 {workflow_name} 处理失败")
+
+            # 更新进度
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 20,
+                'message': '工作流参数处理完成，正在提交到ComfyUI...'
+            })
+
+            # 选择ComfyUI节点 - 支持分布式模式
+            comfyui_url, selected_node_id = self._select_comfyui_node_for_task(task_id, 'text_to_image')
+
+            # 执行工作流
+            import requests
+            import time
+
+            logger.info(f"提交工作流到ComfyUI: {task_id}")
+
+            # 提交工作流 - 增强错误处理
+            try:
+                logger.info(f"向ComfyUI提交工作流: {comfyui_url}/prompt")
+                response = requests.post(f"{comfyui_url}/prompt", json={"prompt": complete_workflow}, timeout=30)
+
+                if response.status_code != 200:
+                    error_detail = f"状态码: {response.status_code}, 响应: {response.text[:500]}"
+                    logger.error(f"ComfyUI API调用失败: {error_detail}")
+                    raise WorkflowExecutionError(f"ComfyUI API调用失败: {error_detail}")
+
+                response_data = response.json()
+                if "prompt_id" not in response_data:
+                    logger.error(f"ComfyUI响应格式异常: {response_data}")
+                    raise Exception("ComfyUI响应中缺少prompt_id")
+
+                prompt_id = response_data["prompt_id"]
+                logger.info(f"工作流已成功提交到ComfyUI，prompt_id: {prompt_id}")
+
+            except requests.exceptions.ConnectionError as e:
+                error_msg = f"无法连接到ComfyUI服务器 (URL: {comfyui_url})"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            except requests.exceptions.Timeout as e:
+                error_msg = f"ComfyUI请求超时 (URL: {comfyui_url})"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            except Exception as e:
+                logger.error(f"提交工作流失败: {e}")
+                raise
+
+            # 更新进度
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 30,
+                'message': f'工作流已提交，正在等待ComfyUI处理... (ID: {prompt_id})'
+            })
+
+            # 等待完成
+            max_wait = 300  # 5分钟
+            start_time = time.time()
+            result_data = None
+
+            while time.time() - start_time < max_wait:
+                try:
+                    history_response = requests.get(f"{comfyui_url}/history/{prompt_id}", timeout=10)
+                    if history_response.status_code == 200:
+                        history = history_response.json()
+                        if prompt_id in history:
+                            # 任务完成
+                            result_data = history[prompt_id]
+                            logger.info(f"工作流执行完成: {prompt_id}")
+                            break
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"查询历史记录失败: {e}")
+
+                time.sleep(3)
+            else:
+                raise Exception("任务超时，ComfyUI可能处理时间过长")
+
+            if not result_data:
+                raise Exception("未获取到执行结果")
+
+            # 处理结果 - 完善文件路径提取逻辑
+            processed_result = self._process_comfyui_result(result_data, task_id, selected_node_id)
+
+            result = TaskResult(
+                task_id=task_id,
+                status=TaskStatus.COMPLETED,
+                result_data=processed_result
+            )
+
+            if result.status == TaskStatus.COMPLETED:
+                # 提取生成参数用于数据库存储
+                generation_params = {
+                    'prompt': request_data.get('prompt', ''),
+                    'negative_prompt': request_data.get('negative_prompt', ''),
+                    'width': request_data.get('width', 512),
+                    'height': request_data.get('height', 512),
+                    'seed': request_data.get('seed', -1),
+                    'workflow_name': workflow_name,
+                    'batch_id': request_data.get('batch_id', ''),
+                    'created_at': request_data.get('created_at', ''),
+                    'updated_at': datetime.now().isoformat()
+                }
+
+                # 更新任务状态为完成
+                update_data = {
+                    'status': TaskStatus.COMPLETED.value,
+                    'progress': 100,
+                    'message': '文生图任务完成',
+                    'result_data': result.result_data
+                }
+                # 添加生成参数
+                update_data.update(generation_params)
+
+                self.update_task_status(task_id, update_data)
+
+                # 清理节点任务分配
+                self._cleanup_node_assignment(task_id, selected_node_id)
+
+                logger.info(f"文生图任务完成: {task_id}")
+                return {
+                    'status': 'completed',
+                    'result': result.result_data,
+                    'message': '文生图任务完成'
+                }
+            else:
+                error_msg = result.error_message or "工作流执行失败"
+                logger.error(f"文生图任务执行失败 {task_id}: {error_msg}")
+
+                # 更新任务状态为失败
+                self.update_task_status(task_id, {
+                    'status': TaskStatus.FAILED.value,
+                    'message': f'任务执行失败: {error_msg}',
+                    'error_message': error_msg,
+                    'progress': 0
+                })
+
+                # 清理节点任务分配
+                self._cleanup_node_assignment(task_id, selected_node_id)
+
+                # 返回失败结果而不是抛出异常
+                return {
+                    'status': 'failed',
+                    'error': error_msg,
+                    'message': f'任务执行失败: {error_msg}',
+                    'task_id': task_id
+                }
+
+        except Exception as e:
+            logger.error(f"文生图任务执行失败 {task_id}: {e}")
+
+            # 清理节点任务分配（如果已选择节点）
+            try:
+                if 'selected_node_id' in locals():
+                    self._cleanup_node_assignment(task_id, selected_node_id)
+            except:
+                pass
+
+            # 更新任务状态为失败
+            self.update_task_status(task_id, {
+                'status': TaskStatus.FAILED.value,
+                'message': f'任务执行失败: {str(e)}',
+                'error_message': str(e),
+                'progress': 0
+            })
+
+            # 返回失败结果而不是抛出异常，避免 Celery Worker 崩溃
+            return {
+                'status': 'failed',
+                'error': str(e),
+                'message': f'任务执行失败: {str(e)}',
+                'task_id': task_id
+            }
+
+    def _execute_image_to_video_logic(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """执行图生视频核心逻辑"""
+        task_id = request_data.get('task_id')
+        if not task_id:
+            logger.error("任务ID缺失，无法执行任务")
+            return {
+                'status': 'failed',
+                'error': '任务ID缺失，无法执行任务',
+                'message': '任务ID缺失，无法执行任务'
+            }
+
+        try:
+            logger.info(f"开始执行图生视频任务: {task_id}")
+
+            # 更新任务状态为处理中
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 0,
+                'message': '正在处理图生视频任务...'
+            })
+
+            # 获取工作流参数处理器
+            from ..core.workflow_parameter_processor import get_workflow_parameter_processor
+            processor = get_workflow_parameter_processor()
+
+            # 获取工作流名称
+            workflow_name = request_data.get('workflow_name', 'svd_basic')
+
+            # 更新进度
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 10,
+                'message': '正在处理工作流参数...'
+            })
+
+            # 处理工作流参数
+            logger.info(f"处理工作流参数: {workflow_name}")
+            complete_workflow = processor.process_workflow_request(workflow_name, request_data)
+
+            if not complete_workflow:
+                raise Exception(f"工作流 {workflow_name} 处理失败")
+
+            # 更新进度
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 20,
+                'message': '工作流参数处理完成，正在提交到ComfyUI...'
+            })
+
+            # 选择ComfyUI节点 - 支持分布式模式
+            comfyui_url, selected_node_id = self._select_comfyui_node_for_task(task_id, 'image_to_video')
+
+            # 执行工作流
+            import requests
+            import time
+
+            logger.info(f"提交工作流到ComfyUI: {task_id}")
+
+            # 提交工作流
+            try:
+                logger.info(f"向ComfyUI提交工作流: {comfyui_url}/prompt")
+                response = requests.post(f"{comfyui_url}/prompt", json={"prompt": complete_workflow}, timeout=30)
+
+                if response.status_code != 200:
+                    error_detail = f"状态码: {response.status_code}, 响应: {response.text[:500]}"
+                    logger.error(f"ComfyUI API调用失败: {error_detail}")
+                    raise Exception(f"ComfyUI API调用失败: {error_detail}")
+
+                response_data = response.json()
+                if "prompt_id" not in response_data:
+                    logger.error(f"ComfyUI响应格式异常: {response_data}")
+                    raise Exception("ComfyUI响应中缺少prompt_id")
+
+                prompt_id = response_data["prompt_id"]
+                logger.info(f"工作流已成功提交到ComfyUI，prompt_id: {prompt_id}")
+
+            except requests.exceptions.ConnectionError as e:
+                error_msg = f"无法连接到ComfyUI服务器 (URL: {comfyui_url})"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            except requests.exceptions.Timeout as e:
+                error_msg = f"ComfyUI请求超时 (URL: {comfyui_url})"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            except Exception as e:
+                logger.error(f"提交工作流失败: {e}")
+                raise
+
+            # 更新进度
+            self.update_task_status(task_id, {
+                'status': 'processing',
+                'progress': 30,
+                'message': f'工作流已提交，正在等待ComfyUI处理... (ID: {prompt_id})'
+            })
+
+            # 等待完成
+            max_wait = 600  # 10分钟（视频生成需要更长时间）
+            start_time = time.time()
+            result_data = None
+
+            while time.time() - start_time < max_wait:
+                try:
+                    history_response = requests.get(f"{comfyui_url}/history/{prompt_id}", timeout=10)
+                    if history_response.status_code == 200:
+                        history = history_response.json()
+                        if prompt_id in history:
+                            # 任务完成
+                            result_data = history[prompt_id]
+                            logger.info(f"工作流执行完成: {prompt_id}")
+                            break
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"查询历史记录失败: {e}")
+
+                time.sleep(5)  # 视频生成检查间隔更长
+            else:
+                raise Exception("任务超时，ComfyUI可能处理时间过长")
+
+            if not result_data:
+                raise Exception("未获取到执行结果")
+
+            # 处理结果文件 - 使用统一的文件处理逻辑
+            processed_result = self._process_comfyui_result(result_data, task_id, selected_node_id)
+            output_files = processed_result.get('files', [])
+
+            if not output_files:
+                raise Exception("未生成任何输出文件")
+
+            # 更新任务状态为完成
+            self.update_task_status(task_id, {
+                'status': 'completed',
+                'progress': 100,
+                'message': '图生视频任务执行成功',
+                'result_data': {
+                    'files': output_files,
+                    'prompt_id': prompt_id
+                }
+            })
+
+            # 清理节点任务分配
+            self._cleanup_node_assignment(task_id, selected_node_id)
+
+            return {
+                'task_id': task_id,
+                'status': 'completed',
+                'files': output_files,
+                'message': '图生视频任务执行成功'
+            }
+
+        except Exception as e:
+            logger.error(f"图生视频任务执行失败 {task_id}: {e}")
+
+            # 清理节点任务分配（如果已选择节点）
+            try:
+                if 'selected_node_id' in locals():
+                    self._cleanup_node_assignment(task_id, selected_node_id)
+            except:
+                pass
+
+            # 更新任务状态为失败
+            self.update_task_status(task_id, {
+                'status': 'failed',
+                'progress': 0,
+                'message': f'图生视频任务执行失败: {str(e)}',
+                'error_message': str(e)
+            })
+
+            # 返回失败结果而不是抛出异常，避免 Celery Worker 崩溃
+            return {
+                'status': 'failed',
+                'error': str(e),
+                'message': f'任务执行失败: {str(e)}',
+                'task_id': task_id
+            }
+
 
 @celery_app.task(bind=True, base=BaseWorkflowTask, queue='text_to_image')
 def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -297,16 +778,13 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
             'progress': 50
         })
 
-        # 执行工作流 - 简化版本
+        # 执行工作流 - 支持分布式模式
         import requests
         import time
         import os
 
-        # 修复：从配置文件读取ComfyUI URL
-        comfyui_config = config_manager.get_comfyui_config()
-        comfyui_host = comfyui_config.get('host', '127.0.0.1')
-        comfyui_port = comfyui_config.get('port', 8188)
-        comfyui_url = f"http://{comfyui_host}:{comfyui_port}"
+        # 选择ComfyUI节点 - 支持分布式模式
+        comfyui_url, selected_node_id = self._select_comfyui_node_for_task(task_id, 'text_to_image')
 
         logger.info(f"提交工作流到ComfyUI: {task_id}")
 
@@ -374,7 +852,7 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
             raise Exception("未获取到执行结果")
 
         # 处理结果 - 完善文件路径提取逻辑
-        processed_result = self._process_comfyui_result(result_data, task_id)
+        processed_result = self._process_comfyui_result(result_data, task_id, selected_node_id)
 
         result = TaskResult(
             task_id=task_id,
@@ -399,6 +877,9 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
 
             self.update_task_status(task_id, update_data)
 
+            # 清理节点任务分配
+            self._cleanup_node_assignment(task_id, selected_node_id)
+
             logger.info(f"文生图任务完成: {task_id}")
             return {
                 'status': 'completed',
@@ -417,6 +898,9 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
                 'progress': 0
             })
 
+            # 清理节点任务分配
+            self._cleanup_node_assignment(task_id, selected_node_id)
+
             # 返回失败结果而不是抛出异常
             return {
                 'status': 'failed',
@@ -427,6 +911,13 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
             
     except Exception as e:
         logger.error(f"文生图任务执行失败 {task_id}: {e}")
+
+        # 清理节点任务分配（如果已选择节点）
+        try:
+            if 'selected_node_id' in locals():
+                self._cleanup_node_assignment(task_id, selected_node_id)
+        except:
+            pass
 
         # 更新任务状态为失败
         self.update_task_status(task_id, {
@@ -447,239 +938,56 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
 
 @celery_app.task(bind=True, base=BaseWorkflowTask, queue='image_to_video')
 def execute_image_to_video_task(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-    """执行图生视频任务"""
-    task_id = request_data.get('task_id')
-    if not task_id:
-        logger.error("任务ID缺失，无法执行任务")
-        return {
-            'status': 'failed',
-            'error': '任务ID缺失，无法执行任务',
-            'message': '任务ID缺失，无法执行任务'
-        }
+    """执行图生视频任务 - 兼容性包装器"""
+    # 直接调用核心逻辑，避免任务套任务
+    return self._execute_image_to_video_logic(request_data)
+
+
+@celery_app.task(bind=True, base=BaseWorkflowTask, queue='text_to_image')
+def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """执行文生图任务 - 兼容性包装器"""
+    # 直接调用核心逻辑，避免任务套任务
+    return self._execute_text_to_image_logic(request_data)
+
+
+@celery_app.task(bind=True, base=BaseWorkflowTask)
+def execute_generic_workflow_task(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """执行通用工作流任务 - 分布式优化版本"""
+    task_id = request_data.get('task_id', self.request.id)
 
     try:
-        logger.info(f"开始执行图生视频任务: {task_id}")
+        logger.info(f"开始执行通用工作流任务: {task_id}")
 
-        # 更新任务状态为处理中
-        self.update_task_status(task_id, {
-            'status': 'processing',
-            'progress': 0,
-            'message': '正在处理图生视频任务...'
-        })
+        # 识别任务类型
+        task_manager = get_task_type_manager()
+        task_type = task_manager.identify_task_type(request_data)
 
-        # 获取工作流参数处理器
-        from ..core.workflow_parameter_processor import get_workflow_parameter_processor
-        processor = get_workflow_parameter_processor()
-
-        # 获取工作流名称，默认使用配置的默认工作流
-        workflow_name = request_data.get('workflow_name', 'Wan2.1 i2v')
-
-        # 处理图片路径 - 将相对路径转换为绝对路径
-        image_path = request_data.get('image', '')
-        if image_path:
-            # 如果是相对路径，转换为绝对路径
-            if not os.path.isabs(image_path):
-                from ..utils.path_utils import get_upload_dir
-                upload_dir = get_upload_dir()
-                full_image_path = os.path.join(upload_dir, image_path)
-                if os.path.exists(full_image_path):
-                    request_data['image'] = full_image_path
-                    logger.info(f"图片路径转换: {image_path} -> {full_image_path}")
-                else:
-                    raise Exception(f"图片文件不存在: {full_image_path}")
-            else:
-                # 检查绝对路径是否存在
-                if not os.path.exists(image_path):
-                    raise Exception(f"图片文件不存在: {image_path}")
-
-        # 处理工作流参数
-        logger.info(f"处理工作流参数: {workflow_name}")
-        processed_workflow = processor.process_workflow_request(workflow_name, request_data)
-
-        if not processed_workflow:
-            raise Exception(f"工作流 {workflow_name} 处理失败")
-
-        # 更新进度
-        self.update_task_status(task_id, {
-            'status': 'processing',
-            'progress': 20,
-            'message': '工作流参数处理完成，正在提交到ComfyUI...'
-        })
-
-        # 执行工作流 - 使用与文生图任务相同的方式
-        import requests
-        import time
-
-        # 从配置文件读取ComfyUI URL
-        config_manager = get_config_manager()
-        comfyui_config = config_manager.get_comfyui_config()
-        comfyui_host = comfyui_config.get('host', '127.0.0.1')
-        comfyui_port = comfyui_config.get('port', 8188)
-        comfyui_url = f"http://{comfyui_host}:{comfyui_port}"
-
-        logger.info(f"提交工作流到ComfyUI: {task_id}")
-
-        # 提交工作流 - 增强错误处理
-        try:
-            logger.info(f"向ComfyUI提交工作流: {comfyui_url}/prompt")
-            response = requests.post(f"{comfyui_url}/prompt", json={"prompt": processed_workflow}, timeout=30)
-
-            if response.status_code != 200:
-                error_detail = f"状态码: {response.status_code}, 响应: {response.text[:500]}"
-                logger.error(f"ComfyUI API调用失败: {error_detail}")
-                raise Exception(f"ComfyUI API调用失败: {error_detail}")
-
-            response_data = response.json()
-            if "prompt_id" not in response_data:
-                logger.error(f"ComfyUI响应格式异常: {response_data}")
-                raise Exception("ComfyUI响应中缺少prompt_id")
-
-            prompt_id = response_data["prompt_id"]
-            logger.info(f"工作流已成功提交到ComfyUI，prompt_id: {prompt_id}")
-
-        except requests.exceptions.Timeout:
-            error_msg = f"ComfyUI连接超时 (URL: {comfyui_url})"
-            logger.error(error_msg)
-            raise Exception(error_msg)
-        except requests.exceptions.ConnectionError:
-            error_msg = f"无法连接到ComfyUI服务器 (URL: {comfyui_url})"
-            logger.error(error_msg)
-            raise Exception(error_msg)
-        except requests.exceptions.RequestException as e:
-            error_msg = f"ComfyUI请求失败: {str(e)}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
-
-        # 更新进度
-        self.update_task_status(task_id, {
-            'status': 'processing',
-            'progress': 40,
-            'message': f'工作流已提交到ComfyUI，提示ID: {prompt_id}'
-        })
-
-        # 等待完成
-        max_wait = 300  # 5分钟
-        start_time = time.time()
-        result_data = None
-
-        while time.time() - start_time < max_wait:
-            try:
-                history_response = requests.get(f"{comfyui_url}/history/{prompt_id}", timeout=10)
-                if history_response.status_code == 200:
-                    history = history_response.json()
-                    if prompt_id in history:
-                        # 任务完成
-                        result_data = history[prompt_id]
-                        logger.info(f"工作流执行完成: {prompt_id}")
-                        break
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"查询历史记录失败: {e}")
-
-            time.sleep(3)
+        # 直接执行对应的业务逻辑，而不是调用其他任务
+        if task_type == TaskType.TEXT_TO_IMAGE:
+            return self._execute_text_to_image_logic(request_data)
+        elif task_type == TaskType.IMAGE_TO_VIDEO:
+            return self._execute_image_to_video_logic(request_data)
         else:
-            raise Exception("任务超时，ComfyUI可能处理时间过长")
-
-        if not result_data:
-            raise Exception("未获取到执行结果")
-
-        # 更新进度
-        self.update_task_status(task_id, {
-            'status': 'processing',
-            'progress': 80,
-            'message': '视频生成完成，正在处理结果文件...'
-        })
-
-        # 处理结果文件 - 从ComfyUI历史记录中提取文件信息
-        output_files = []
-        if 'outputs' in result_data:
-            for node_id, node_output in result_data['outputs'].items():
-                if 'videos' in node_output:
-                    for video_info in node_output['videos']:
-                        output_files.append({
-                            'filename': video_info['filename'],
-                            'subfolder': video_info.get('subfolder', ''),
-                            'type': video_info.get('type', 'output')
-                        })
-                elif 'images' in node_output:
-                    for image_info in node_output['images']:
-                        output_files.append({
-                            'filename': image_info['filename'],
-                            'subfolder': image_info.get('subfolder', ''),
-                            'type': image_info.get('type', 'output')
-                        })
-
-        if not output_files:
-            raise Exception("未生成任何输出文件")
-
-        logger.info(f"图生视频任务完成: {task_id}, 生成文件: {len(output_files)}")
-
-        # 更新任务状态为完成
-        self.update_task_status(task_id, {
-            'status': 'completed',
-            'progress': 100,
-            'message': f'图生视频任务完成，生成了 {len(output_files)} 个文件',
-            'result_data': {
-                'files': output_files,
-                'prompt': request_data.get('prompt', ''),
-                'negative_prompt': request_data.get('negative_prompt', ''),
-                'workflow_name': workflow_name,
-                'image': request_data.get('image', ''),
-                'batch_id': request_data.get('batch_id', ''),
-                'created_at': request_data.get('created_at', ''),
-                'updated_at': datetime.now().isoformat()
-            }
-        })
-
-        return {
-            'task_id': task_id,
-            'status': 'completed',
-            'files': output_files,
-            'message': '图生视频任务执行成功'
-        }
+            raise Exception(f"不支持的任务类型: {task_type.value}")
 
     except Exception as e:
-        logger.error(f"图生视频任务执行失败 {task_id}: {e}")
+        logger.error(f"通用工作流任务执行失败 {task_id}: {e}")
 
         # 更新任务状态为失败
         self.update_task_status(task_id, {
-            'status': 'failed',
-            'progress': 0,
-            'message': f'图生视频任务执行失败: {str(e)}',
-            'error_message': str(e)
+            'status': TaskStatus.FAILED.value,
+            'message': f'任务执行失败: {str(e)}',
+            'error_message': str(e),
+            'progress': 0
         })
 
-        # 返回失败结果而不是抛出异常，避免 Celery Worker 崩溃
+        # 返回失败结果而不是重试
         return {
             'status': 'failed',
             'error': str(e),
             'message': f'任务执行失败: {str(e)}',
             'task_id': task_id
         }
-
-
-@celery_app.task(bind=True, base=BaseWorkflowTask)
-def execute_generic_workflow_task(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-    """执行通用工作流任务"""
-    task_id = request_data.get('task_id', self.request.id)
-    
-    try:
-        logger.info(f"开始执行通用工作流任务: {task_id}")
-        
-        # 识别任务类型
-        task_manager = get_task_type_manager()
-        task_type = task_manager.identify_task_type(request_data)
-        
-        # 根据任务类型调用相应的任务
-        if task_type == TaskType.TEXT_TO_IMAGE:
-            return execute_text_to_image_task.apply_async(args=[request_data]).get()
-        elif task_type == TaskType.IMAGE_TO_VIDEO:
-            return execute_image_to_video_task.apply_async(args=[request_data]).get()
-        else:
-            raise Exception(f"不支持的任务类型: {task_type.value}")
-            
-    except Exception as e:
-        logger.error(f"通用工作流任务执行失败 {task_id}: {e}")
-        raise self.retry(exc=e, countdown=60, max_retries=3)
 
 
 # 任务状态查询函数

@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
 title ComfyUI 分布式服务启动器
 
@@ -28,7 +29,7 @@ echo %GREEN%✅ Python环境正常%RESET%
 :: 检查虚拟环境
 echo.
 echo %BLUE%[2/6] 检查虚拟环境...%RESET%
-if not exist "backend\venv\Scripts\activate.bat" (
+if not exist ".venv\Scripts\activate.bat" (
     echo %YELLOW%⚠️  虚拟环境不存在，正在创建...%RESET%
     cd backend
     python -m venv venv
@@ -45,7 +46,7 @@ echo %GREEN%✅ 虚拟环境就绪%RESET%
 echo.
 echo %BLUE%[3/6] 安装依赖包...%RESET%
 cd backend
-call venv\Scripts\activate.bat
+call .\venv\Scripts\activate.bat
 pip install -r requirements.txt >nul 2>&1
 if errorlevel 1 (
     echo %YELLOW%⚠️  依赖安装可能有问题，继续启动...%RESET%
@@ -88,12 +89,14 @@ cd backend
 :: 测试分布式功能
 echo.
 echo %BLUE%[6/6] 测试分布式功能...%RESET%
-python test_distributed.py
+cd ..
+python test/test_all_fixes.py
 if errorlevel 1 (
     echo %YELLOW%⚠️  分布式测试有问题，但继续启动服务...%RESET%
 ) else (
     echo %GREEN%✅ 分布式功能测试通过%RESET%
 )
+cd backend
 
 echo.
 echo %GREEN%🚀 准备启动分布式服务...%RESET%
@@ -101,12 +104,39 @@ echo.
 
 :: 启动Redis
 echo %BLUE%启动Redis服务...%RESET%
-start "Redis Server" /min cmd /c "Redis-x64-3.2.100\redis-server.exe Redis-x64-3.2.100\redis.windows.conf"
-timeout /t 3 /nobreak >nul
+python -c "
+import subprocess
+import sys
+import time
+try:
+    # 尝试连接现有Redis
+    import redis
+    r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+    r.ping()
+    print('✅ Redis已在运行')
+except:
+    try:
+        # 尝试启动Redis
+        subprocess.Popen(['redis-server'], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        time.sleep(3)
+        r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        r.ping()
+        print('✅ Redis启动成功')
+    except Exception as e:
+        print(f'❌ Redis启动失败: {e}')
+        print('请手动启动Redis或检查安装')
+        sys.exit(1)
+"
+if errorlevel 1 (
+    echo %RED%❌ Redis启动失败%RESET%
+    pause
+    exit /b 1
+)
 
 :: 启动Celery Worker
 echo %BLUE%启动Celery Worker...%RESET%
-start "Celery Worker" cmd /c "call venv\Scripts\activate.bat && python -m celery -A app.queue.celery_app worker --loglevel=info --pool=solo"
+start "Celery Worker - ComfyUI分布式" cmd /k "call venv\Scripts\activate.bat && echo 🔄 启动Celery Worker... && python -m celery -A app.queue.celery_app worker --loglevel=info --pool=solo"
+echo %GREEN%✅ Celery Worker已在新窗口启动%RESET%
 timeout /t 3 /nobreak >nul
 
 :: 启动FastAPI主服务

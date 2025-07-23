@@ -63,6 +63,13 @@ def convert_file_path_to_url(file_path: str) -> str:
     # 标准化路径分隔符
     file_path = file_path.replace('\\', '/')
 
+    # 检查是否为分布式模式的相对路径（不包含绝对路径标识）
+    if not ('/' in file_path and (file_path.startswith('/') or ':' in file_path)):
+        # 这是一个相对路径，可能来自分布式节点
+        # 直接使用文件代理接口
+        logger.debug(f"分布式相对路径: /api/v2/files/{file_path}")
+        return f"/api/v2/files/{file_path}"
+
     # 尝试匹配backend/outputs目录
     if '/backend/outputs/' in file_path or 'backend/outputs/' in file_path:
         # 使用正则表达式匹配outputs之后的路径
@@ -98,9 +105,9 @@ def convert_file_path_to_url(file_path: str) -> str:
             logger.debug(f"通用输出URL: /comfyui-output/{url_path}")
             return f"/comfyui-output/{url_path}"
 
-    # 如果都不匹配，返回None（使用下载接口作为兜底）
-    logger.debug(f"无法转换路径: {file_path}")
-    return None
+    # 如果都不匹配，使用文件代理接口作为兜底
+    logger.debug(f"使用代理接口: /api/v2/files/{os.path.basename(file_path)}")
+    return f"/api/v2/files/{os.path.basename(file_path)}"
 
 
 @router.post("/api/v2/tasks/text-to-image", response_model=TaskSubmissionResponse)
@@ -647,10 +654,10 @@ async def get_output_file(
     file_path: str,
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """获取输出文件"""
+    """获取输出文件 - 支持分布式图片代理"""
     verify_token(credentials.credentials)
 
-    # 构建完整文件路径
+    # 首先尝试本地文件
     output_dir = get_output_dir()
     full_path = os.path.join(output_dir, file_path)
 
@@ -658,12 +665,58 @@ async def get_output_file(
     if not is_safe_path(full_path, output_dir):
         raise HTTPException(status_code=403, detail="访问被拒绝")
 
-    # 检查文件是否存在
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
+    # 检查本地文件是否存在
+    if os.path.exists(full_path):
+        return FileResponse(full_path)
 
-    # 返回文件
-    return FileResponse(full_path)
+    # 本地文件不存在，尝试从分布式节点获取
+    try:
+        from ..core.config_manager import get_config_manager
+        config_manager = get_config_manager()
+
+        if config_manager.is_distributed_mode():
+            # 尝试从所有节点获取文件
+            from ..core.node_manager import get_node_manager
+            node_manager = get_node_manager()
+
+            nodes_dict = node_manager.get_all_nodes()
+
+            for node in nodes_dict.values():
+                if node.status.value == 'online':
+                    try:
+                        # 尝试从节点获取文件
+                        import requests
+                        node_url = f"{node.url}/view"
+                        params = {"filename": os.path.basename(file_path)}
+
+                        # 如果文件在子目录中，需要添加subfolder参数
+                        if '/' in file_path:
+                            subfolder = os.path.dirname(file_path)
+                            params["subfolder"] = subfolder
+
+                        response = requests.get(node_url, params=params, timeout=10)
+                        if response.status_code == 200:
+                            content = response.content
+                            content_type = response.headers.get('content-type', 'application/octet-stream')
+
+                            # 返回代理的文件内容
+                            from fastapi.responses import Response
+                            return Response(
+                                content=content,
+                                media_type=content_type,
+                                headers={
+                                    "Content-Disposition": f"inline; filename={os.path.basename(file_path)}"
+                                }
+                            )
+                    except Exception as e:
+                        logger.debug(f"从节点 {node.node_id} 获取文件失败: {e}")
+                        continue
+
+    except Exception as e:
+        logger.error(f"分布式文件获取失败: {e}")
+
+    # 所有方法都失败，返回404
+    raise HTTPException(status_code=404, detail="文件不存在")
 
 
 @router.get("/api/v2/tasks/{task_id}/status", response_model=TaskResponse)
@@ -791,19 +844,91 @@ async def health_check_v2():
     except Exception:
         services['redis'] = 'unhealthy'
 
-    # 检查ComfyUI状态
+    # 检查ComfyUI状态 - 支持分布式模式
     try:
         import aiohttp
         config_manager = get_config_manager()
-        comfyui_config = config_manager.get_comfyui_config()
-        host = comfyui_config.get('host', '127.0.0.1')
-        port = comfyui_config.get('port', 8188)
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://{host}:{port}/system_stats", timeout=5) as response:
-                services['comfyui'] = 'healthy' if response.status == 200 else 'unhealthy'
-    except Exception:
+        if config_manager.is_distributed_mode():
+            # 分布式模式：检查所有节点状态
+            try:
+                from ..core.node_manager import get_node_manager
+                node_manager = get_node_manager()
+                nodes_dict = node_manager.get_all_nodes()
+
+                if not nodes_dict:
+                    services['comfyui'] = 'unhealthy'
+                    services['comfyui_details'] = {'error': '没有配置的ComfyUI节点'}
+                else:
+                    healthy_nodes = 0
+                    total_nodes = len(nodes_dict)
+                    node_details = {}
+
+                    async with aiohttp.ClientSession() as session:
+                        for node_id, node in nodes_dict.items():
+                            try:
+                                async with session.get(f"{node.url}/system_stats", timeout=5) as response:
+                                    if response.status == 200:
+                                        healthy_nodes += 1
+                                        node_details[node_id] = {
+                                            'status': 'healthy',
+                                            'url': node.url,
+                                            'node_type': node.node_type.value if hasattr(node, 'node_type') else 'unknown'
+                                        }
+                                    else:
+                                        node_details[node_id] = {
+                                            'status': 'unhealthy',
+                                            'url': node.url,
+                                            'error': f'HTTP {response.status}'
+                                        }
+                            except Exception as e:
+                                node_details[node_id] = {
+                                    'status': 'unhealthy',
+                                    'url': node.url,
+                                    'error': str(e)
+                                }
+
+                    # 如果至少有一个节点健康，则认为服务可用
+                    services['comfyui'] = 'healthy' if healthy_nodes > 0 else 'unhealthy'
+                    services['comfyui_details'] = {
+                        'mode': 'distributed',
+                        'healthy_nodes': healthy_nodes,
+                        'total_nodes': total_nodes,
+                        'nodes': node_details
+                    }
+
+            except Exception as e:
+                # 分布式组件初始化失败，降级到单机模式检查
+                logger.warning(f"分布式健康检查失败，降级到单机模式: {e}")
+                comfyui_config = config_manager.get_comfyui_config()
+                host = comfyui_config.get('host', '127.0.0.1')
+                port = comfyui_config.get('port', 8188)
+
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"http://{host}:{port}/system_stats", timeout=5) as response:
+                        services['comfyui'] = 'healthy' if response.status == 200 else 'unhealthy'
+                        services['comfyui_details'] = {
+                            'mode': 'single (fallback)',
+                            'url': f"http://{host}:{port}",
+                            'distributed_error': str(e)
+                        }
+        else:
+            # 单机模式：检查配置文件中的ComfyUI实例
+            comfyui_config = config_manager.get_comfyui_config()
+            host = comfyui_config.get('host', '127.0.0.1')
+            port = comfyui_config.get('port', 8188)
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://{host}:{port}/system_stats", timeout=5) as response:
+                    services['comfyui'] = 'healthy' if response.status == 200 else 'unhealthy'
+                    services['comfyui_details'] = {
+                        'mode': 'single',
+                        'url': f"http://{host}:{port}"
+                    }
+
+    except Exception as e:
         services['comfyui'] = 'unhealthy'
+        services['comfyui_details'] = {'error': str(e)}
 
     # 计算队列信息
     queue_info = {}

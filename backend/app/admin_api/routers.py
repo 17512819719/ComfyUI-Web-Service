@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import List, Optional
 import uuid
 from datetime import datetime, timedelta
+import asyncio
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -98,6 +99,120 @@ def update_node(node_id: int, node: schemas.NodeCreate, db: Session = Depends(ut
     db.refresh(db_node)
     return db_node
 
+# ==================== 分布式节点管理 ====================
+
+@router.get("/distributed/nodes")
+def get_distributed_nodes(token: str = Depends(auth.oauth2_scheme)):
+    """获取分布式节点状态"""
+    payload = auth.decode_access_token(token)
+
+    try:
+        from ..core.config_manager import get_config_manager
+        config_manager = get_config_manager()
+
+        if not config_manager.is_distributed_mode():
+            return {
+                "mode": "single",
+                "message": "当前为单机模式",
+                "nodes": []
+            }
+
+        from ..core.node_manager import get_node_manager
+        node_manager = get_node_manager()
+        nodes_dict = node_manager.get_all_nodes()
+
+        # 转换为API响应格式
+        nodes_list = []
+        for node_id, node in nodes_dict.items():
+            # 获取节点实时状态
+            try:
+                import requests
+                response = requests.get(f"{node.url}/system_stats", timeout=3)
+                is_online = response.status_code == 200
+                system_stats = response.json() if is_online else {}
+            except:
+                is_online = False
+                system_stats = {}
+
+            nodes_list.append({
+                "node_id": node_id,
+                "url": node.url,
+                "host": node.host,
+                "port": node.port,
+                "status": "online" if is_online else "offline",
+                "node_type": getattr(node, 'node_type', 'worker'),
+                "max_concurrent": getattr(node, 'max_concurrent', 4),
+                "current_tasks": len(getattr(node, 'current_tasks', [])),
+                "capabilities": getattr(node, 'capabilities', []),
+                "last_heartbeat": node.last_heartbeat.isoformat() if hasattr(node, 'last_heartbeat') and node.last_heartbeat else None,
+                "system_stats": system_stats
+            })
+
+        return {
+            "mode": "distributed",
+            "total_nodes": len(nodes_list),
+            "online_nodes": sum(1 for n in nodes_list if n["status"] == "online"),
+            "nodes": nodes_list
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取分布式节点状态失败: {str(e)}")
+
+@router.post("/distributed/nodes/{node_id}/health-check")
+def check_node_health(node_id: str, token: str = Depends(auth.oauth2_scheme)):
+    """手动检查节点健康状态"""
+    payload = auth.decode_access_token(token)
+
+    try:
+        from ..core.node_manager import get_node_manager
+        node_manager = get_node_manager()
+
+        # 执行健康检查
+        async def _check_health():
+            return await node_manager.check_node_health(node_id)
+
+        is_healthy = asyncio.run(_check_health())
+
+        return {
+            "node_id": node_id,
+            "is_healthy": is_healthy,
+            "checked_at": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"节点健康检查失败: {str(e)}")
+
+@router.get("/distributed/load-balancer/stats")
+def get_load_balancer_stats(token: str = Depends(auth.oauth2_scheme)):
+    """获取负载均衡器统计信息"""
+    payload = auth.decode_access_token(token)
+
+    try:
+        from ..core.config_manager import get_config_manager
+        config_manager = get_config_manager()
+
+        if not config_manager.is_distributed_mode():
+            return {"mode": "single", "message": "当前为单机模式"}
+
+        from ..core.load_balancer import get_load_balancer
+        load_balancer = get_load_balancer()
+
+        # 获取负载均衡统计
+        stats = {
+            "strategy": getattr(load_balancer, 'strategy', 'unknown'),
+            "total_requests": getattr(load_balancer, 'total_requests', 0),
+            "node_selections": getattr(load_balancer, 'node_selections', {}),
+            "last_selection_time": getattr(load_balancer, 'last_selection_time', None)
+        }
+
+        if stats["last_selection_time"]:
+            stats["last_selection_time"] = stats["last_selection_time"].isoformat()
+
+        return stats
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取负载均衡统计失败: {str(e)}")
+
 # ==================== 任务管理 ====================
 
 @router.get("/tasks", response_model=List[schemas.TaskOut])
@@ -158,9 +273,38 @@ def get_dashboard(db: Session = Depends(utils.get_db), token: str = Depends(auth
     if not db_user or not bool(db_user.is_superuser):
         raise HTTPException(status_code=403, detail="无权限")
     
-    # 统计节点
-    total_nodes = db.query(models.Node).count()
-    online_nodes = db.query(models.Node).filter(models.Node.status == 'online').count()
+    # 统计节点 - 集成分布式节点管理
+    try:
+        from ..core.config_manager import get_config_manager
+        config_manager = get_config_manager()
+
+        if config_manager.is_distributed_mode():
+            # 分布式模式：从节点管理器获取实时状态
+            from ..core.node_manager import get_node_manager
+            node_manager = get_node_manager()
+            nodes_dict = node_manager.get_all_nodes()
+
+            total_nodes = len(nodes_dict)
+            online_nodes = 0
+
+            # 检查每个节点的在线状态
+            for node_id, node in nodes_dict.items():
+                try:
+                    import requests
+                    response = requests.get(f"{node.url}/system_stats", timeout=2)
+                    if response.status_code == 200:
+                        online_nodes += 1
+                except:
+                    pass
+        else:
+            # 单机模式：从数据库获取
+            total_nodes = db.query(models.Node).count()
+            online_nodes = db.query(models.Node).filter(models.Node.status == 'online').count()
+
+    except Exception as e:
+        # 降级到数据库统计
+        total_nodes = db.query(models.Node).count()
+        online_nodes = db.query(models.Node).filter(models.Node.status == 'online').count()
     
     # 统计任务
     total_tasks = db.query(models.Task).count()

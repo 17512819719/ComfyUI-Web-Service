@@ -173,21 +173,68 @@ async def check_system_dependencies():
     except Exception as e:
         print(f"🟡 Redis: 检查异常 ({e}) (使用内存模式)")
 
-    # 检查ComfyUI连接
+    # 检查ComfyUI连接 - 支持分布式模式
     try:
         import aiohttp
-        comfyui_config = config_manager.get_comfyui_config()
-        host = comfyui_config.get('host', '127.0.0.1')
-        port = comfyui_config.get('port', 8188)
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://{host}:{port}/system_stats", timeout=5) as response:
-                if response.status == 200:
-                    print(f"🎨 ComfyUI: 已连接 ({host}:{port})")
+        if config_manager.is_distributed_mode():
+            # 分布式模式：检查所有节点
+            try:
+                from .core.node_manager import get_node_manager
+                node_manager = get_node_manager()
+                nodes_dict = node_manager.get_all_nodes()
+
+                if not nodes_dict:
+                    print("❌ ComfyUI: 没有配置的分布式节点")
                 else:
-                    print(f"🟡 ComfyUI: 响应异常 ({response.status})")
-    except Exception:
-        print("❌ ComfyUI: 连接失败 (请检查ComfyUI是否运行)")
+                    print(f"🌐 ComfyUI: 分布式模式 ({len(nodes_dict)} 个节点)")
+                    healthy_count = 0
+
+                    async with aiohttp.ClientSession() as session:
+                        for node_id, node in nodes_dict.items():
+                            try:
+                                async with session.get(f"{node.url}/system_stats", timeout=5) as response:
+                                    if response.status == 200:
+                                        print(f"  ✅ {node_id}: 已连接 ({node.url})")
+                                        healthy_count += 1
+                                    else:
+                                        print(f"  🟡 {node_id}: 响应异常 ({response.status}) - {node.url}")
+                            except Exception as e:
+                                print(f"  ❌ {node_id}: 连接失败 - {node.url} ({str(e)[:50]})")
+
+                    if healthy_count > 0:
+                        print(f"🎨 ComfyUI: {healthy_count}/{len(nodes_dict)} 个节点可用")
+                    else:
+                        print("❌ ComfyUI: 所有分布式节点都不可用")
+
+            except Exception as e:
+                # 分布式组件初始化失败，降级到单机模式
+                print(f"🟡 ComfyUI: 分布式检查失败，降级到单机模式 ({str(e)[:50]})")
+                comfyui_config = config_manager.get_comfyui_config()
+                host = comfyui_config.get('host', '127.0.0.1')
+                port = comfyui_config.get('port', 8188)
+
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"http://{host}:{port}/system_stats", timeout=5) as response:
+                        if response.status == 200:
+                            print(f"🎨 ComfyUI: 已连接 ({host}:{port}) [单机模式]")
+                        else:
+                            print(f"🟡 ComfyUI: 响应异常 ({response.status}) [单机模式]")
+        else:
+            # 单机模式：检查配置文件中的ComfyUI实例
+            comfyui_config = config_manager.get_comfyui_config()
+            host = comfyui_config.get('host', '127.0.0.1')
+            port = comfyui_config.get('port', 8188)
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://{host}:{port}/system_stats", timeout=5) as response:
+                    if response.status == 200:
+                        print(f"🎨 ComfyUI: 已连接 ({host}:{port}) [单机模式]")
+                    else:
+                        print(f"🟡 ComfyUI: 响应异常 ({response.status}) [单机模式]")
+
+    except Exception as e:
+        print(f"❌ ComfyUI: 连接检查失败 ({str(e)[:50]})")
 
 
 async def cleanup_system():
@@ -269,21 +316,62 @@ import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-# 挂载outputs目录用于图片访问
-outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs')
-if os.path.exists(outputs_dir):
-    app.mount("/outputs", StaticFiles(directory=outputs_dir, check_dir=True, html=True), name="outputs")
-    logger.info(f"输出文件服务已挂载: /outputs -> {outputs_dir}")
-else:
-    os.makedirs(outputs_dir, exist_ok=True)
-    app.mount("/outputs", StaticFiles(directory=outputs_dir, check_dir=True, html=True), name="outputs")
-    logger.info(f"输出目录已创建并挂载: /outputs -> {outputs_dir}")
+# 挂载输出目录 - 支持分布式模式
+try:
+    from .utils.path_utils import get_output_dir
+    from .core.config_manager import get_config_manager
 
-# 挂载ComfyUI的output目录（如果存在）
-comfyui_output_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ComfyUI', 'output')
-if os.path.exists(comfyui_output_dir):
-    app.mount("/comfyui-output", StaticFiles(directory=comfyui_output_dir, check_dir=True, html=True), name="comfyui_output")
-    logger.info(f"ComfyUI输出文件服务已挂载: /comfyui-output -> {comfyui_output_dir}")
+    config_manager = get_config_manager()
+    outputs_dir = get_output_dir()
+
+    # 确保输出目录存在
+    os.makedirs(outputs_dir, exist_ok=True)
+
+    # 挂载主输出目录 - 优化配置
+
+    class OptimizedStaticFiles(StaticFiles):
+        """优化的静态文件服务"""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+        def file_response(self, *args, **kwargs):
+            """添加缓存控制头"""
+            response = super().file_response(*args, **kwargs)
+
+            # 为图片和视频文件添加缓存控制
+            if hasattr(response, 'headers'):
+                # 图片和视频文件缓存1小时
+                if any(response.headers.get('content-type', '').startswith(ct) for ct in
+                       ['image/', 'video/']):
+                    response.headers['Cache-Control'] = 'public, max-age=3600'
+                # 其他文件缓存10分钟
+                else:
+                    response.headers['Cache-Control'] = 'public, max-age=600'
+
+            return response
+
+    app.mount("/outputs", OptimizedStaticFiles(directory=outputs_dir, check_dir=True, html=True), name="outputs")
+
+    if config_manager.is_distributed_mode():
+        logger.info(f"分布式模式输出文件服务已挂载: /outputs -> {outputs_dir}")
+        logger.info("注意: 分布式模式下，实际文件通过代理服务从各节点获取")
+    else:
+        logger.info(f"单机模式输出文件服务已挂载: /outputs -> {outputs_dir}")
+
+        # 单机模式：额外挂载ComfyUI的output目录（如果存在）
+        comfyui_output_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ComfyUI', 'output')
+        if os.path.exists(comfyui_output_dir):
+            app.mount("/comfyui-output", OptimizedStaticFiles(directory=comfyui_output_dir, check_dir=True, html=True), name="comfyui_output")
+            logger.info(f"ComfyUI输出文件服务已挂载: /comfyui-output -> {comfyui_output_dir}")
+
+except Exception as e:
+    # 降级到默认配置
+    logger.warning(f"输出目录配置失败，使用默认配置: {e}")
+    outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs')
+    os.makedirs(outputs_dir, exist_ok=True)
+    app.mount("/outputs", OptimizedStaticFiles(directory=outputs_dir, check_dir=True, html=True), name="outputs")
+    logger.info(f"默认输出文件服务已挂载: /outputs -> {outputs_dir}")
 
 # 挂载前端静态文件
 client_dist_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'client', 'dist')

@@ -57,7 +57,15 @@ class ConfigManager:
         """验证配置文件结构"""
         try:
             # 基础结构验证
-            required_sections = ['task_types', 'comfyui', 'redis']
+            required_sections = ['task_types', 'redis']
+
+            # 分布式模式下的额外必需节
+            if self.is_distributed_mode():
+                required_sections.extend(['distributed', 'nodes'])
+            else:
+                # 单机模式下ComfyUI配置是必需的
+                required_sections.append('comfyui')
+
             for section in required_sections:
                 if section not in self.config_data:
                     raise ConfigValidationError(f"配置文件缺少必需的节: {section}")
@@ -67,6 +75,11 @@ class ConfigManager:
             self._validate_redis_config()
             self._validate_task_types_config()
 
+            # 验证分布式配置（如果启用）
+            if self.is_distributed_mode():
+                self._validate_distributed_config()
+                self._validate_nodes_config()
+
             logger.debug("配置文件验证通过")
 
         except Exception as e:
@@ -74,9 +87,25 @@ class ConfigManager:
             raise
 
     def _validate_comfyui_config(self):
-        """验证ComfyUI配置"""
+        """验证ComfyUI配置 - 支持分布式模式"""
         comfyui_config = self.config_data.get('comfyui', {})
 
+        if self.is_distributed_mode():
+            # 分布式模式：ComfyUI配置为可选（兼容性保留）
+            if comfyui_config:
+                logger.debug("分布式模式：验证兼容性ComfyUI配置")
+                self._validate_single_comfyui_config(comfyui_config)
+            else:
+                logger.debug("分布式模式：跳过ComfyUI配置验证")
+        else:
+            # 单机模式：ComfyUI配置为必需
+            if not comfyui_config:
+                raise ConfigValidationError("单机模式下ComfyUI配置是必需的")
+
+            self._validate_single_comfyui_config(comfyui_config)
+
+    def _validate_single_comfyui_config(self, comfyui_config: dict):
+        """验证单个ComfyUI配置"""
         # 检查必需字段
         required_fields = ['host', 'port']
         for field in required_fields:
@@ -87,6 +116,11 @@ class ConfigManager:
         port = comfyui_config.get('port')
         if not isinstance(port, int) or port <= 0 or port > 65535:
             raise ConfigValidationError(f"ComfyUI端口号无效: {port}")
+
+        # 验证主机地址
+        host = comfyui_config.get('host')
+        if not isinstance(host, str) or not host.strip():
+            raise ConfigValidationError(f"ComfyUI主机地址无效: {host}")
 
     def _validate_redis_config(self):
         """验证Redis配置"""
@@ -130,6 +164,134 @@ class ConfigManager:
         workflow_file = workflow_config.get('workflow_file')
         if workflow_file and not os.path.exists(workflow_file):
             logger.warning(f"工作流文件不存在: {workflow_file} (工作流: {workflow_name})")
+
+    def _validate_distributed_config(self):
+        """验证分布式配置"""
+        distributed_config = self.config_data.get('distributed', {})
+
+        if not distributed_config:
+            raise ConfigValidationError("分布式模式启用但缺少distributed配置节")
+
+        # 验证基本配置
+        enabled = distributed_config.get('enabled', False)
+        if not isinstance(enabled, bool):
+            raise ConfigValidationError("distributed.enabled必须是布尔值")
+
+        # 验证文件管理配置
+        file_management = distributed_config.get('file_management', {})
+        if file_management:
+            proxy_output_dir = file_management.get('proxy_output_dir')
+            if proxy_output_dir and not isinstance(proxy_output_dir, str):
+                raise ConfigValidationError("file_management.proxy_output_dir必须是字符串")
+
+            enable_file_cache = file_management.get('enable_file_cache', True)
+            if not isinstance(enable_file_cache, bool):
+                raise ConfigValidationError("file_management.enable_file_cache必须是布尔值")
+
+            cache_ttl = file_management.get('cache_ttl', 3600)
+            if not isinstance(cache_ttl, int) or cache_ttl <= 0:
+                raise ConfigValidationError("file_management.cache_ttl必须是正整数")
+
+        # 验证同步配置
+        sync_config = distributed_config.get('sync', {})
+        if sync_config:
+            enable_file_sync = sync_config.get('enable_file_sync', False)
+            if not isinstance(enable_file_sync, bool):
+                raise ConfigValidationError("sync.enable_file_sync必须是布尔值")
+
+            sync_interval = sync_config.get('sync_interval', 300)
+            if not isinstance(sync_interval, int) or sync_interval <= 0:
+                raise ConfigValidationError("sync.sync_interval必须是正整数")
+
+            sync_patterns = sync_config.get('sync_patterns', [])
+            if not isinstance(sync_patterns, list):
+                raise ConfigValidationError("sync.sync_patterns必须是列表")
+
+    def _validate_nodes_config(self):
+        """验证节点配置"""
+        nodes_config = self.config_data.get('nodes', {})
+
+        if not nodes_config:
+            raise ConfigValidationError("分布式模式启用但缺少nodes配置节")
+
+        # 验证发现模式
+        discovery_mode = nodes_config.get('discovery_mode', 'static')
+        valid_modes = ['static', 'dynamic', 'hybrid']
+        if discovery_mode not in valid_modes:
+            raise ConfigValidationError(f"nodes.discovery_mode必须是以下之一: {valid_modes}")
+
+        # 验证健康检查配置
+        health_check = nodes_config.get('health_check', {})
+        if health_check:
+            interval = health_check.get('interval', 30)
+            if not isinstance(interval, int) or interval <= 0:
+                raise ConfigValidationError("health_check.interval必须是正整数")
+
+            timeout = health_check.get('timeout', 5)
+            if not isinstance(timeout, int) or timeout <= 0:
+                raise ConfigValidationError("health_check.timeout必须是正整数")
+
+        # 验证负载均衡配置
+        load_balancing = nodes_config.get('load_balancing', {})
+        if load_balancing:
+            strategy = load_balancing.get('strategy', 'least_loaded')
+            valid_strategies = ['round_robin', 'least_loaded', 'weighted', 'random']
+            if strategy not in valid_strategies:
+                raise ConfigValidationError(f"load_balancing.strategy必须是以下之一: {valid_strategies}")
+
+        # 验证静态节点配置
+        static_nodes = nodes_config.get('static_nodes', [])
+        if discovery_mode in ['static', 'hybrid'] and not static_nodes:
+            raise ConfigValidationError("静态或混合发现模式下必须配置static_nodes")
+
+        if static_nodes:
+            self._validate_static_nodes(static_nodes)
+
+    def _validate_static_nodes(self, static_nodes: list):
+        """验证静态节点配置"""
+        if not isinstance(static_nodes, list):
+            raise ConfigValidationError("static_nodes必须是列表")
+
+        node_ids = set()
+        for i, node in enumerate(static_nodes):
+            if not isinstance(node, dict):
+                raise ConfigValidationError(f"static_nodes[{i}]必须是字典")
+
+            # 验证必需字段
+            required_fields = ['node_id', 'host', 'port']
+            for field in required_fields:
+                if field not in node:
+                    raise ConfigValidationError(f"static_nodes[{i}]缺少字段: {field}")
+
+            # 验证节点ID唯一性
+            node_id = node['node_id']
+            if node_id in node_ids:
+                raise ConfigValidationError(f"节点ID重复: {node_id}")
+            node_ids.add(node_id)
+
+            # 验证主机和端口
+            host = node['host']
+            if not isinstance(host, str) or not host.strip():
+                raise ConfigValidationError(f"static_nodes[{i}].host无效: {host}")
+
+            port = node['port']
+            if not isinstance(port, int) or port <= 0 or port > 65535:
+                raise ConfigValidationError(f"static_nodes[{i}].port无效: {port}")
+
+            # 验证可选字段
+            max_concurrent = node.get('max_concurrent', 4)
+            if not isinstance(max_concurrent, int) or max_concurrent <= 0:
+                raise ConfigValidationError(f"static_nodes[{i}].max_concurrent必须是正整数")
+
+            capabilities = node.get('capabilities', [])
+            if not isinstance(capabilities, list):
+                raise ConfigValidationError(f"static_nodes[{i}].capabilities必须是列表")
+
+            # 验证任务类型能力
+            valid_capabilities = ['text_to_image', 'image_to_video']
+            for capability in capabilities:
+                if capability not in valid_capabilities:
+                    raise ConfigValidationError(f"static_nodes[{i}].capabilities包含无效值: {capability}")
 
     def _load_workflow_configs(self):
         """加载工作流配置"""

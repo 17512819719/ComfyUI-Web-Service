@@ -24,23 +24,55 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
 
     def __init__(self):
         self.config_manager = get_config_manager()
-        self.comfyui_config = self.config_manager.get_comfyui_config()
 
-        # 兼容性配置（单机模式）
-        self.host = self.comfyui_config.get('host', '127.0.0.1')
-        self.port = self.comfyui_config.get('port', 8188)
-        self.timeout = self.comfyui_config.get('timeout', 300)
-        self.base_url = f"http://{self.host}:{self.port}"
-        self.ws_url = f"ws://{self.host}:{self.port}/ws"
+        # 基础配置
+        self.timeout = 300  # 默认超时时间
 
         # 分布式模式支持
         self.is_distributed = self.config_manager.is_distributed_mode()
         self.node_manager = None
         self.load_balancer = None
 
+        # 单机模式兼容配置（仅在非分布式模式下使用）
+        self.single_mode_config = None
+
         if self.is_distributed:
-            # 延迟初始化，避免循环导入
+            # 分布式模式：初始化分布式组件
             self._init_distributed_components()
+        else:
+            # 单机模式：初始化单机配置
+            self._init_single_mode_config()
+
+    def _init_single_mode_config(self):
+        """初始化单机模式配置"""
+        try:
+            comfyui_config = self.config_manager.get_comfyui_config()
+            self.single_mode_config = {
+                'host': comfyui_config.get('host', '127.0.0.1'),
+                'port': comfyui_config.get('port', 8188),
+                'timeout': comfyui_config.get('timeout', 300),
+            }
+
+            # 构建URL
+            host = self.single_mode_config['host']
+            port = self.single_mode_config['port']
+            self.single_mode_config['base_url'] = f"http://{host}:{port}"
+            self.single_mode_config['ws_url'] = f"ws://{host}:{port}/ws"
+
+            # 更新超时时间
+            self.timeout = self.single_mode_config['timeout']
+
+            logger.info(f"单机模式已配置: {self.single_mode_config['base_url']}")
+        except Exception as e:
+            logger.error(f"初始化单机模式配置失败: {e}")
+            # 使用默认配置
+            self.single_mode_config = {
+                'host': '127.0.0.1',
+                'port': 8188,
+                'timeout': 300,
+                'base_url': 'http://127.0.0.1:8188',
+                'ws_url': 'ws://127.0.0.1:8188/ws'
+            }
 
     def _init_distributed_components(self):
         """初始化分布式组件"""
@@ -54,7 +86,71 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
         except Exception as e:
             logger.error(f"初始化分布式组件失败: {e}")
             self.is_distributed = False
-        
+            # 降级到单机模式
+            logger.warning("降级到单机模式")
+            self._init_single_mode_config()
+
+    def get_execution_url(self, task_type: str = None, task_id: str = None) -> tuple[str, str]:
+        """获取执行URL - 支持分布式和单机模式
+
+        Returns:
+            tuple: (base_url, node_id)
+        """
+        if self.is_distributed and self.node_manager and self.load_balancer:
+            try:
+                # 分布式模式：使用负载均衡器选择节点
+                from .base import TaskType
+
+                # 转换任务类型
+                if task_type == 'text_to_image':
+                    task_type_enum = TaskType.TEXT_TO_IMAGE
+                elif task_type == 'image_to_video':
+                    task_type_enum = TaskType.IMAGE_TO_VIDEO
+                else:
+                    task_type_enum = TaskType.TEXT_TO_IMAGE  # 默认
+
+                # 获取可用节点
+                import asyncio
+                available_nodes = asyncio.run(self.node_manager.get_available_nodes(task_type_enum))
+
+                if available_nodes:
+                    # 选择最佳节点
+                    selected_node = self.load_balancer.select_node(available_nodes, task_type_enum)
+                    if selected_node:
+                        if task_id:
+                            # 分配任务到节点
+                            asyncio.run(self.node_manager.assign_task_to_node(selected_node.node_id, task_id))
+
+                        logger.debug(f"分布式模式选择节点: {selected_node.node_id} ({selected_node.url})")
+                        return selected_node.url, selected_node.node_id
+
+                # 没有可用节点，降级到单机模式
+                logger.warning("没有可用的分布式节点，降级到单机模式")
+
+            except Exception as e:
+                logger.error(f"分布式节点选择失败: {e}")
+
+        # 单机模式或分布式降级
+        if self.single_mode_config:
+            base_url = self.single_mode_config['base_url']
+            logger.debug(f"单机模式URL: {base_url}")
+            return base_url, "default"
+        else:
+            # 最终降级
+            default_url = "http://127.0.0.1:8188"
+            logger.warning(f"使用默认URL: {default_url}")
+            return default_url, "default"
+
+    def cleanup_task_assignment(self, task_id: str, node_id: str):
+        """清理任务分配"""
+        if self.is_distributed and self.node_manager and node_id != "default":
+            try:
+                import asyncio
+                asyncio.run(self.node_manager.remove_task_from_node(node_id, task_id))
+                logger.debug(f"已清理任务分配: {task_id} <- {node_id}")
+            except Exception as e:
+                logger.warning(f"清理任务分配失败: {e}")
+
 
     async def execute(self, workflow_config: WorkflowConfig, workflow_data: Dict[str, Any]) -> TaskResult:
         """执行工作流
@@ -102,10 +198,17 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
         if not self.is_distributed:
             # 单机模式，返回默认节点
             from datetime import datetime
+            if self.single_mode_config:
+                host = self.single_mode_config['host']
+                port = self.single_mode_config['port']
+            else:
+                host = '127.0.0.1'
+                port = 8188
+
             return ComfyUINode(
                 node_id="default",
-                host=self.host,
-                port=self.port,
+                host=host,
+                port=port,
                 status=NodeStatus.ONLINE,
                 last_heartbeat=datetime.now()
             )
@@ -136,8 +239,8 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
             # 使用节点的URL
             base_url = node.url
         else:
-            # 使用默认URL
-            base_url = self.base_url
+            # 使用单机模式URL
+            base_url = self.single_mode_config['base_url'] if self.single_mode_config else "http://127.0.0.1:8188"
 
         return await self._submit_workflow_with_url(workflow_data, base_url)
 
@@ -149,9 +252,13 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
                 base_url = node.url
                 ws_url = f"ws://{node.host}:{node.port}/ws"
             else:
-                # 使用默认URL
-                base_url = self.base_url
-                ws_url = self.ws_url
+                # 使用单机模式URL
+                if self.single_mode_config:
+                    base_url = self.single_mode_config['base_url']
+                    ws_url = self.single_mode_config['ws_url']
+                else:
+                    base_url = "http://127.0.0.1:8188"
+                    ws_url = "ws://127.0.0.1:8188/ws"
 
             result = await self._monitor_execution_with_url(prompt_id, task_id, base_url, ws_url)
 
@@ -517,7 +624,8 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
 
     async def _submit_workflow(self, workflow_data: Dict[str, Any]) -> str:
         """提交工作流到ComfyUI（兼容性方法）"""
-        return await self._submit_workflow_with_url(workflow_data, self.base_url)
+        base_url = self.single_mode_config['base_url'] if self.single_mode_config else "http://127.0.0.1:8188"
+        return await self._submit_workflow_with_url(workflow_data, base_url)
 
     def _convert_to_comfyui_format(self, workflow_data: Dict[str, Any]) -> Dict[str, Any]:
         """将工作流转换为ComfyUI期望的格式"""
@@ -708,7 +816,13 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
 
     async def _monitor_execution(self, prompt_id: str, task_id: str) -> TaskResult:
         """监控工作流执行（兼容性方法）"""
-        return await self._monitor_execution_with_url(prompt_id, task_id, self.base_url, self.ws_url)
+        if self.single_mode_config:
+            base_url = self.single_mode_config['base_url']
+            ws_url = self.single_mode_config['ws_url']
+        else:
+            base_url = "http://127.0.0.1:8188"
+            ws_url = "ws://127.0.0.1:8188/ws"
+        return await self._monitor_execution_with_url(prompt_id, task_id, base_url, ws_url)
     
     async def _get_result_files_with_url(self, prompt_id: str, base_url: str) -> List[str]:
         """获取结果文件（指定URL）"""
@@ -750,7 +864,8 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
 
     async def _get_result_files(self, prompt_id: str) -> List[str]:
         """获取结果文件（兼容性方法）"""
-        return await self._get_result_files_with_url(prompt_id, self.base_url)
+        base_url = self.single_mode_config['base_url'] if self.single_mode_config else "http://127.0.0.1:8188"
+        return await self._get_result_files_with_url(prompt_id, base_url)
     
     def get_supported_task_types(self) -> List[TaskType]:
         """获取支持的任务类型"""

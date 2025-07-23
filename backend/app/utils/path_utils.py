@@ -40,18 +40,57 @@ def resolve_path(path: str, base_dir: Optional[str] = None) -> str:
 
 
 def get_output_dir() -> str:
-    """获取ComfyUI输出目录"""
+    """获取ComfyUI输出目录 - 支持分布式模式"""
     try:
         from ..core.config_manager import get_config_manager
         config_manager = get_config_manager()
-        comfyui_config = config_manager.get_comfyui_config()
-        output_dir = comfyui_config.get('output_dir', 'outputs')
-        
-        return resolve_path(output_dir)
+
+        if config_manager.is_distributed_mode():
+            # 分布式模式：使用主机的输出目录作为代理缓存目录
+            # 实际文件通过代理服务从各个节点获取
+            distributed_config = config_manager.get_config('distributed') or {}
+            file_management = distributed_config.get('file_management', {})
+            output_dir = file_management.get('proxy_output_dir', 'outputs/distributed')
+
+            logger.debug(f"分布式模式输出目录: {output_dir}")
+            return resolve_path(output_dir)
+        else:
+            # 单机模式：使用配置文件中的输出目录
+            comfyui_config = config_manager.get_comfyui_config()
+            output_dir = comfyui_config.get('output_dir', 'outputs')
+
+            logger.debug(f"单机模式输出目录: {output_dir}")
+            return resolve_path(output_dir)
+
     except Exception as e:
         logger.error(f"获取输出目录失败: {e}")
         # 返回默认输出目录
         return resolve_path('outputs')
+
+
+def get_node_output_dir(node_id: str = None) -> str:
+    """获取特定节点的输出目录 - 分布式模式专用"""
+    try:
+        from ..core.config_manager import get_config_manager
+        config_manager = get_config_manager()
+
+        if config_manager.is_distributed_mode() and node_id:
+            # 分布式模式：为每个节点创建独立的缓存目录
+            base_output_dir = get_output_dir()
+            node_output_dir = os.path.join(base_output_dir, 'nodes', node_id)
+
+            # 确保目录存在
+            os.makedirs(node_output_dir, exist_ok=True)
+
+            logger.debug(f"节点 {node_id} 输出目录: {node_output_dir}")
+            return node_output_dir
+        else:
+            # 单机模式或无节点ID：返回默认输出目录
+            return get_output_dir()
+
+    except Exception as e:
+        logger.error(f"获取节点输出目录失败: {e}")
+        return get_output_dir()
 
 
 def get_upload_dir() -> str:
