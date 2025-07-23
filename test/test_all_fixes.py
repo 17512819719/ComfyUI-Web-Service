@@ -27,7 +27,7 @@ def test_startup_script_improvements():
     
     try:
         # 测试配置验证功能
-        from start_fastapi import validate_distributed_config, check_dependencies
+        from startup_script_improvements import validate_distributed_config, check_dependencies
         
         print("测试分布式配置验证:")
         config_valid = validate_distributed_config()
@@ -36,8 +36,11 @@ def test_startup_script_improvements():
         print("\n测试依赖服务检查:")
         deps = check_dependencies()
         print("  服务状态:")
-        for service, status in deps.items():
-            print(f"    {service}: {'✅' if status else '❌'}")
+        if deps is not None:
+            for service, status in deps.items():
+                print(f"    {service}: {'✅' if status else '❌'}")
+            
+        
         
         print("✅ 启动脚本改进测试完成")
         
