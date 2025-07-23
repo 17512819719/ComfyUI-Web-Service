@@ -12,8 +12,9 @@ class RoleCreate(RoleBase):
 
 class RoleOut(RoleBase):
     id: int
-    class Config:
-        orm_mode = True
+    model_config={
+        "from_attributes" : True
+    }
 
 # 用户相关
 class UserBase(BaseModel):
@@ -31,8 +32,9 @@ class UserOut(UserBase):
     role: Optional[RoleOut]
     created_at: datetime
     last_login: Optional[datetime]
-    class Config:
-        orm_mode = True
+    model_config={
+        "from_attributes" : True
+    }
 
 # 节点相关
 class NodeBase(BaseModel):
@@ -52,8 +54,9 @@ class NodeOut(NodeBase):
     id: int
     created_at: datetime
     last_heartbeat: Optional[datetime]
-    class Config:
-        orm_mode = True
+    model_config={
+        "from_attributes" : True
+    }
 
 # 任务相关
 class TaskBase(BaseModel):
@@ -80,8 +83,9 @@ class TaskOut(TaskBase):
     completed_at: Optional[datetime] = None
     user: Optional[UserOut] = None
     node: Optional[NodeOut] = None
-    class Config:
-        orm_mode = True
+    model_config={
+        "from_attributes" : True
+    }
 
 # 系统监控相关
 class SystemStatus(BaseModel):
@@ -103,5 +107,6 @@ class SystemLogBase(BaseModel):
 class SystemLogOut(SystemLogBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True 
+    model_config={
+        "from_attributes" : True
+    }

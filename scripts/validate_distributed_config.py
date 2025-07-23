@@ -188,11 +188,11 @@ class DistributedConfigValidator:
         if not self.errors and not self.warnings:
             print("✅ 配置验证通过，没有发现问题")
             
-        print("\n💡 建议:")
-        print("   1. 确保所有从机已启动ComfyUI服务")
-        print("   2. 检查网络连接和防火墙设置")
-        print("   3. 验证从机ComfyUI监听在0.0.0.0:8188")
-        print("   4. 运行 'python scripts/test_distributed.py' 进行完整测试")
+        # print("\n💡 建议:")
+        # print("   1. 确保所有从机已启动ComfyUI服务")
+        # print("   2. 检查网络连接和防火墙设置")
+        # print("   3. 验证从机ComfyUI监听在0.0.0.0:8188")
+        # print("   4. 运行 'python scripts/test_distributed.py' 进行完整测试")
 
 
 async def main():

@@ -39,7 +39,7 @@ def check_environment():
             return False
     
     # 检查配置文件
-    config_file = Path("config.yaml")
+    config_file = Path("backend/config.yaml")
     if not config_file.exists():
         print("❌ 未找到config.yaml配置文件")
         return False
@@ -66,7 +66,7 @@ def validate_distributed_config():
 
     try:
         # 检查是否为分布式模式
-        with open('config.yaml', 'r', encoding='utf-8') as f:
+        with open('backend/config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
         distributed_config = config.get('distributed', {})
@@ -131,7 +131,7 @@ def check_dependencies():
     redis_running = False
     try:
         import redis
-        with open('config.yaml', 'r', encoding='utf-8') as f:
+        with open('backend/config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         redis_config = config.get('redis', {})
         r = redis.Redis(
@@ -267,7 +267,7 @@ def check_dependencies():
 def load_server_config():
     """加载服务器配置"""
     try:
-        with open('config.yaml', 'r', encoding='utf-8') as f:
+        with open('backend/config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         
         server_config = config.get('server', {})

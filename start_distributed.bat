@@ -1,161 +1,139 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 >nul
-title ComfyUI 分布式服务启动器
+title ComfyUI Distributed Service Launcher
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║                    ComfyUI 分布式服务启动器                    ║
-echo ╚══════════════════════════════════════════════════════════════╝
+echo ================================================================
+echo                ComfyUI Distributed Service Launcher
+echo ================================================================
 echo.
 
-:: 设置颜色
-set "GREEN=[92m"
-set "YELLOW=[93m"
-set "RED=[91m"
-set "BLUE=[94m"
-set "RESET=[0m"
-
-:: 检查Python环境
-echo %BLUE%[1/6] 检查Python环境...%RESET%
+:: Check Python environment
+echo [1/7] Checking Python environment...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo %RED%❌ Python未安装或未添加到PATH%RESET%
+    echo [ERROR] Python not installed or not in PATH
     pause
     exit /b 1
 )
-echo %GREEN%✅ Python环境正常%RESET%
+echo [OK] Python environment ready
 
-:: 检查虚拟环境
+:: Check virtual environment
 echo.
-echo %BLUE%[2/6] 检查虚拟环境...%RESET%
+echo [2/7] Checking virtual environment...
 if not exist ".venv\Scripts\activate.bat" (
-    echo %YELLOW%⚠️  虚拟环境不存在，正在创建...%RESET%
-    cd backend
-    python -m venv venv
+    echo [WARN] Virtual environment not found, creating...
+    python -m venv .venv
     if errorlevel 1 (
-        echo %RED%❌ 创建虚拟环境失败%RESET%
+        echo [ERROR] Failed to create virtual environment
         pause
         exit /b 1
     )
-    cd ..
 )
-echo %GREEN%✅ 虚拟环境就绪%RESET%
+echo [OK] Virtual environment ready
 
-:: 激活虚拟环境并安装依赖
+:: Activate virtual environment and install dependencies
 echo.
-echo %BLUE%[3/6] 安装依赖包...%RESET%
-cd backend
-call .\venv\Scripts\activate.bat
+echo [3/7] Installing dependencies...
+call .venv\Scripts\activate.bat
 pip install -r requirements.txt >nul 2>&1
 if errorlevel 1 (
-    echo %YELLOW%⚠️  依赖安装可能有问题，继续启动...%RESET%
+    echo [WARN] Dependencies installation may have issues, continuing...
 ) else (
-    echo %GREEN%✅ 依赖包安装完成%RESET%
+    echo [OK] Dependencies installed
 )
 
-:: 清理任务队列
+:: Clean task queue
 echo.
-echo %BLUE%[4/6] 清理任务队列...%RESET%
-python -c "
-import sys
-sys.path.append('.')
-try:
-    from scripts.cleanup_tasks import cleanup_all_tasks
-    cleanup_all_tasks()
-    print('✅ 任务队列清理完成')
-except Exception as e:
-    print(f'⚠️  清理任务队列时出错: {e}')
-"
+echo [4/6] Cleaning task queue...
+python scripts\cleanup_tasks.py >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Task queue cleanup failed
+) else (
+    echo [OK] Task queue cleaned
+)
 
-:: 验证分布式配置
+:: Validate distributed configuration
 echo.
-echo %BLUE%[5/6] 验证分布式配置...%RESET%
-cd ..
+echo [5/7] Validating distributed configuration...
 python scripts\validate_distributed_config.py
 if errorlevel 1 (
-    echo %YELLOW%⚠️  分布式配置验证有问题%RESET%
-    set /p "CONTINUE=是否继续启动? (y/n): "
+    echo [WARN] Distributed configuration validation failed
+    set /p "CONTINUE=Continue startup? (y/n): "
     if /i not "!CONTINUE!"=="y" (
-        echo %RED%启动已取消%RESET%
+        echo [INFO] Startup cancelled
         pause
         exit /b 1
     )
 ) else (
-    echo %GREEN%✅ 分布式配置验证通过%RESET%
-)
-cd backend
-
-:: 测试分布式功能
-echo.
-echo %BLUE%[6/6] 测试分布式功能...%RESET%
-cd ..
-python test/test_all_fixes.py
-if errorlevel 1 (
-    echo %YELLOW%⚠️  分布式测试有问题，但继续启动服务...%RESET%
-) else (
-    echo %GREEN%✅ 分布式功能测试通过%RESET%
-)
-cd backend
-
-echo.
-echo %GREEN%🚀 准备启动分布式服务...%RESET%
-echo.
-
-:: 启动Redis
-echo %BLUE%启动Redis服务...%RESET%
-python -c "
-import subprocess
-import sys
-import time
-try:
-    # 尝试连接现有Redis
-    import redis
-    r = redis.Redis(host='localhost', port=6379, decode_responses=True)
-    r.ping()
-    print('✅ Redis已在运行')
-except:
-    try:
-        # 尝试启动Redis
-        subprocess.Popen(['redis-server'], creationflags=subprocess.CREATE_NEW_CONSOLE)
-        time.sleep(3)
-        r = redis.Redis(host='localhost', port=6379, decode_responses=True)
-        r.ping()
-        print('✅ Redis启动成功')
-    except Exception as e:
-        print(f'❌ Redis启动失败: {e}')
-        print('请手动启动Redis或检查安装')
-        sys.exit(1)
-"
-if errorlevel 1 (
-    echo %RED%❌ Redis启动失败%RESET%
-    pause
-    exit /b 1
+    echo [OK] Distributed configuration validated
 )
 
-:: 启动Celery Worker
-echo %BLUE%启动Celery Worker...%RESET%
-start "Celery Worker - ComfyUI分布式" cmd /k "call venv\Scripts\activate.bat && echo 🔄 启动Celery Worker... && python -m celery -A app.queue.celery_app worker --loglevel=info --pool=solo"
-echo %GREEN%✅ Celery Worker已在新窗口启动%RESET%
+echo.
+echo [INFO] Starting distributed services...
+echo.
+
+:: Start All Service
+echo [6/7] Testing distributed functionality...
+
+
+:: Start Redis in background
+echo [INFO] Starting Redis Worker...
+start "Redis Server" cmd /k "cd backend && Redis-x64-3.2.100\redis-server.exe Redis-x64-3.2.100\redis.windows.conf" >nul 2>&1
+timeout /t 3 /nobreak >nul
+echo [OK] Redis startup attempted
+echo.
+
+:: Start Celery Worker
+echo [INFO] Starting Celery Worker...
+start "Celery Worker - ComfyUI Distributed" cmd /k "call .venv\Scripts\activate.bat && echo [INFO] Starting Celery Worker... && cd backend && python -m celery -A app.queue.celery_app worker --loglevel=info --pool=solo"
+echo [OK] Celery Worker started in new window
+timeout /t 3 /nobreak >nul
+echo.
+
+:: Start Client Service
+echo [INFO] Starting Client Service
+start "Client Service- ComfyUI Distributed" cmd /k "echo [INFO] Starting Client Service... && cd frontend\client && npm run dev"
+echo [OK] Client Service started in new window
+timeout /t 3 /nobreak >nul
+echo.
+
+:: Start Admin Service
+echo [INFO] Starting Admin Service
+start "Admin Service- ComfyUI Distributed" cmd /k "echo [INFO] Starting Admin Service... && cd frontend\admin && npm run dev"
+echo [OK] Admin Service started in new window
 timeout /t 3 /nobreak >nul
 
-:: 启动FastAPI主服务
-echo %BLUE%启动FastAPI主服务...%RESET%
+
+:: Test distributed functionality
 echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║                        服务信息                              ║
-echo ╠══════════════════════════════════════════════════════════════╣
-echo ║ 主服务地址: http://localhost:8000                            ║
-echo ║ API文档:   http://localhost:8000/docs                       ║
-echo ║ 管理界面:   http://localhost:8000/admin                      ║
-echo ║ 客户端:    http://localhost:8000/client                     ║
-echo ╚══════════════════════════════════════════════════════════════╝
+echo [7/7] Testing distributed functionality...
+python test\test_all_fixes.py
+if errorlevel 1 (
+    echo [WARN] Distributed test failed, but continuing startup...
+) else (
+    echo [OK] Distributed functionality test passed
+)
+
+
+
+:: Start FastAPI main service
+echo [INFO] Starting FastAPI main service...
 echo.
-echo %GREEN%按 Ctrl+C 停止服务%RESET%
+echo ================================================================
+echo                        Service Information
+echo ================================================================
+echo  Main Service: http://localhost:8000
+echo  API Docs:     http://localhost:8000/docs
+echo  Admin Panel:  http://localhost:5173/
+echo  Client:       http://localhost:5174/
+echo ================================================================
+echo.
+echo [INFO] Press Ctrl+C to stop service
 echo.
 
-python -m uvicorn app.main_v2:app --host 0.0.0.0 --port 8000 --reload
+call .venv/Scripts/activate && python -m uvicorn app.main_v2:app --host 0.0.0.0 --port 8000 --reload
 
 echo.
-echo %YELLOW%服务已停止%RESET%
+echo [INFO] Service stopped
 pause

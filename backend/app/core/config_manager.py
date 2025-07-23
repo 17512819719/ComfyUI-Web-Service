@@ -162,8 +162,10 @@ class ConfigManager:
 
         # 验证工作流文件是否存在
         workflow_file = workflow_config.get('workflow_file')
+        if os.path.basename(os.getcwd()) != 'backend':
+            os.chdir('backend')
         if workflow_file and not os.path.exists(workflow_file):
-            logger.warning(f"工作流文件不存在: {workflow_file} (工作流: {workflow_name})")
+            logger.warning(f"工作流文件不存在:{workflow_file} (工作流: {workflow_name})")
 
     def _validate_distributed_config(self):
         """验证分布式配置"""
