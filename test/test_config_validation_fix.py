@@ -58,7 +58,7 @@ def test_single_mode_validation():
     try:
         config_file = create_test_config(valid_single_config)
         
-        from app.core.config_manager import ConfigManager
+        from backend.app.core.config_manager import ConfigManager
         config_manager = ConfigManager(config_file)
         
         print("✅ 有效单机模式配置验证通过")

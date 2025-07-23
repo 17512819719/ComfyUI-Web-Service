@@ -8,7 +8,8 @@ def get_mysql_url():
     config_path = os.path.join(os.path.dirname(__file__), '../..', 'config.yaml')
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
-    mysql = config['mysql']
+    # 使用管理后台数据库配置
+    mysql = config['mysql']['admin']
     return f"mysql+pymysql://{mysql['user']}:{mysql['password']}@{mysql['host']}:{mysql['port']}/{mysql['database']}"
 
 SQLALCHEMY_DATABASE_URL = get_mysql_url()

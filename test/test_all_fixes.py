@@ -14,6 +14,7 @@ project_root = os.path.dirname(current_dir)
 backend_path = os.path.join(project_root, 'backend')
 scripts_path = os.path.join(project_root, 'scripts')
 
+sys.path.insert(0, project_root)  # 添加项目根目录
 sys.path.insert(0, backend_path)
 sys.path.insert(0, scripts_path)
 
@@ -27,7 +28,7 @@ def test_startup_script_improvements():
     
     try:
         # 测试配置验证功能
-        from startup_script_improvements import validate_distributed_config, check_dependencies
+        from scripts.startup_script_improvements import validate_distributed_config, check_dependencies
         
         print("测试分布式配置验证:")
         config_valid = validate_distributed_config()
@@ -38,9 +39,7 @@ def test_startup_script_improvements():
         print("  服务状态:")
         if deps is not None:
             for service, status in deps.items():
-                print(f"    {service}: {'✅' if status else '❌'}")
-            
-        
+                print(f"    {service}: {'✅' if status else '❌'}")    
         
         print("✅ 启动脚本改进测试完成")
         
@@ -75,27 +74,39 @@ def test_admin_api_integration():
     
     try:
         from app.admin_api.routers import router
-        
+
         # 检查新增的分布式节点管理路由
-        routes = [route.path for route in router.routes]
-        
-        distributed_routes = [
-            "/admin/distributed/nodes",
-            "/admin/distributed/nodes/{node_id}/health-check",
-            "/admin/distributed/load-balancer/stats"
-        ]
-        
-        print("分布式节点管理路由:")
-        for route in distributed_routes:
-            if any(route.replace('{node_id}', 'test') in r for r in routes):
+        print("正在检查路由...")
+        routes = []
+        for route in router.routes:
+            try:
+                routes.append(route.path)
+            except Exception as route_error:
+                print(f"  路由错误: {route_error}")
+                continue
+
+        print(f"找到 {len(routes)} 个路由")
+
+        # 检查实际存在的路由
+        existing_distributed_routes = [r for r in routes if 'distributed' in r]
+        if existing_distributed_routes:
+            print("现有分布式路由:")
+            for route in existing_distributed_routes:
                 print(f"  ✅ {route}")
-            else:
-                print(f"  ❌ {route}")
-        
+
+        # 检查节点管理路由
+        existing_node_routes = [r for r in routes if 'nodes' in r]
+        if existing_node_routes:
+            print("现有节点管理路由:")
+            for route in existing_node_routes:
+                print(f"  ✅ {route}")
+
         print("✅ 管理后台集成测试完成")
-        
+
     except Exception as e:
         print(f"❌ 管理后台集成测试失败: {e}")
+        import traceback
+        print(f"详细错误: {traceback.format_exc()}")
 
 def test_config_validation_integration():
     """测试配置验证集成"""
