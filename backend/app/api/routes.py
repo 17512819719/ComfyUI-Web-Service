@@ -1034,7 +1034,31 @@ async def download_task_result_v2(
         file_path = files
 
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
+        # 本地文件不存在，尝试通过分布式文件代理获取
+        logger.debug(f"本地文件不存在，尝试分布式获取: {file_path}")
+        try:
+            # 将绝对路径转换为相对路径（如果需要）
+            if os.path.isabs(file_path):
+                # 尝试提取相对于输出目录的路径
+                output_dir = get_output_dir()
+                try:
+                    relative_path = os.path.relpath(file_path, output_dir)
+                    # 确保是相对路径且不包含 ".."
+                    if not relative_path.startswith('..'):
+                        file_path = relative_path
+                except ValueError:
+                    # 如果无法计算相对路径，使用文件名
+                    file_path = os.path.basename(file_path)
+
+            # 调用分布式文件获取逻辑
+            return await get_output_file(file_path, credentials)
+        except HTTPException as e:
+            # 如果分布式获取也失败，返回原始错误
+            logger.warning(f"分布式文件获取失败: {e.detail}")
+            raise HTTPException(status_code=404, detail="文件不存在")
+        except Exception as e:
+            logger.error(f"分布式文件获取异常: {e}")
+            raise HTTPException(status_code=404, detail="文件不存在")
 
     filename = os.path.basename(file_path)
     return FileResponse(file_path, filename=filename)
