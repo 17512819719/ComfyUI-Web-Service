@@ -166,9 +166,60 @@ def init_worker(sender, **kwargs):
         else:
             print("⚠️ Celery Worker: 数据库连接测试失败")
 
+        # 初始化分布式组件（如果启用）
+        try:
+            if config_manager.is_distributed_mode():
+                print("🌐 Celery Worker: 检测到分布式模式，正在初始化节点管理器...")
+
+                # 导入并初始化节点管理器
+                from ..core.node_manager import get_node_manager
+                from ..core.load_balancer import get_load_balancer
+
+                # 启动节点管理器
+                node_manager = get_node_manager()
+
+                # 在新的事件循环中启动节点管理器
+                import asyncio
+                import concurrent.futures
+
+                def start_node_manager():
+                    """在新线程中启动节点管理器"""
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        new_loop.run_until_complete(node_manager.start())
+                        print("✅ Celery Worker: 节点管理器已启动")
+                        return True
+                    except Exception as e:
+                        print(f"❌ Celery Worker: 节点管理器启动失败: {e}")
+                        return False
+                    finally:
+                        new_loop.close()
+
+                # 使用线程池启动节点管理器
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(start_node_manager)
+                    success = future.result(timeout=30)  # 30秒超时
+
+                if success:
+                    # 初始化负载均衡器
+                    get_load_balancer()
+                    print("✅ Celery Worker: 负载均衡器已初始化")
+                    print("🚀 Celery Worker: 分布式模式已启用")
+                else:
+                    print("⚠️ Celery Worker: 分布式组件初始化失败，将使用单机模式")
+            else:
+                print("🖥️ Celery Worker: 单机模式运行")
+
+        except Exception as e:
+            import traceback
+            print(f"⚠️ Celery Worker: 分布式组件初始化失败: {e}")
+            print(f"详细错误: {traceback.format_exc()}")
+            print("💡 将降级到单机模式运行")
+
     except Exception as e:
         import traceback
-        print(f"❌ Celery Worker: 数据库初始化失败: {e}")
+        print(f"❌ Celery Worker: 初始化失败: {e}")
         print(f"详细错误: {traceback.format_exc()}")
 
 

@@ -122,16 +122,44 @@ class BaseWorkflowTask(Task):
                     from ..core.load_balancer import get_load_balancer
                     from ..core.base import TaskType
 
+                    # 定义异步函数执行器
+                    import asyncio
+                    import concurrent.futures
+
+                    def run_async_in_thread(coro):
+                        """在新线程中运行异步函数"""
+                        def run_in_thread():
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                return new_loop.run_until_complete(coro)
+                            finally:
+                                new_loop.close()
+
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(run_in_thread)
+                            return future.result()
+
                     # 获取节点管理器和负载均衡器
                     node_manager = get_node_manager()
                     load_balancer = get_load_balancer()
+
+                    # 确保节点管理器已启动
+                    if not node_manager._running:
+                        logger.warning("节点管理器未启动，尝试启动...")
+                        try:
+                            run_async_in_thread(node_manager.start())
+                        except Exception as start_error:
+                            logger.error(f"启动节点管理器失败: {start_error}")
+                            raise Exception("节点管理器启动失败")
 
                     # 转换任务类型
                     task_type_enum = TaskType.TEXT_TO_IMAGE if task_type == 'text_to_image' else TaskType.IMAGE_TO_VIDEO
 
                     # 获取可用节点
-                    import asyncio
-                    available_nodes = asyncio.run(node_manager.get_available_nodes(task_type_enum))
+                    available_nodes = run_async_in_thread(node_manager.get_available_nodes(task_type_enum))
+
+                    logger.info(f"可用节点: {available_nodes}")
 
                     if not available_nodes:
                         logger.warning("分布式模式：没有可用的ComfyUI节点，降级到单机模式")
@@ -145,7 +173,7 @@ class BaseWorkflowTask(Task):
                         raise Exception("负载均衡器选择失败")
 
                     # 分配任务到节点
-                    asyncio.run(node_manager.assign_task_to_node(selected_node.node_id, task_id))
+                    run_async_in_thread(node_manager.assign_task_to_node(selected_node.node_id, task_id))
 
                     logger.info(f"分布式模式：任务 {task_id} 分配到节点 {selected_node.node_id} ({selected_node.url})")
                     return selected_node.url, selected_node.node_id

@@ -79,16 +79,18 @@ echo [6/7] Testing distributed functionality...
 
 :: Start Redis in background
 echo [INFO] Starting Redis Worker...
-start "Redis Server" cmd /k "cd backend && Redis-x64-3.2.100\redis-server.exe Redis-x64-3.2.100\redis.windows.conf" >nul 2>&1
+@REM start "Redis Server" cmd /k "cd backend && Redis-x64-3.2.100\redis-server.exe Redis-x64-3.2.100\redis.windows.conf" >nul 2>&1
+python scripts\start_redis.py
 timeout /t 3 /nobreak >nul
 echo [OK] Redis startup attempted
 echo.
 
 :: Start Celery Worker
 echo [INFO] Starting Celery Worker...
-start "Celery Worker - ComfyUI Distributed" cmd /k "call .venv\Scripts\activate.bat && echo [INFO] Starting Celery Worker... && cd backend && python -m celery -A app.queue.celery_app worker --loglevel=info --pool=solo"
-echo [OK] Celery Worker started in new window
+python scripts\cleanup_celery.py
+start "Celery Worker - ComfyUI Distributed" cmd /k "call .venv\Scripts\activate.bat && echo [INFO] Starting Celery Worker... && cd backend && python -m celery -A app.queue.celery_app worker --loglevel=info --pool=solo --queues=text_to_image,image_to_video,celery --concurrency=1"
 timeout /t 3 /nobreak >nul
+echo [OK] Celery Worker started in new window
 echo.
 
 :: Start Client Service

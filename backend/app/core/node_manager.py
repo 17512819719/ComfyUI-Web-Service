@@ -140,6 +140,7 @@ class ComfyUINodeManager(BaseNodeManager):
         available_nodes = []
         
         for node in self._nodes.values():
+
             # 检查节点是否可用
             if not node.is_available:
                 continue
