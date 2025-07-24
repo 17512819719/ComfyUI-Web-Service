@@ -676,10 +676,12 @@ async def get_output_file(
 
         if config_manager.is_distributed_mode():
             # 尝试从所有节点获取文件
+            logger.debug(f"开始分布式文件获取 - 文件路径: {file_path}")
             from ..core.node_manager import get_node_manager
             node_manager = get_node_manager()
 
             nodes_dict = node_manager.get_all_nodes()
+            logger.debug(f"获取到 {len(nodes_dict)} 个节点")
 
             for node in nodes_dict.values():
                 if node.status.value == 'online':
@@ -693,15 +695,21 @@ async def get_output_file(
                         # 注意：ComfyUI期望使用反斜杠作为路径分隔符
                         if '/' in file_path or '\\' in file_path:
                             subfolder = os.path.dirname(file_path)
-                            # 将正斜杠转换为反斜杠，因为ComfyUI使用反斜杠
-                            subfolder = subfolder.replace('/', '\\')
+                            # 保持原始路径分隔符，不进行转换
+                            # 因为ComfyUI会根据操作系统自动处理路径分隔符
                             params["subfolder"] = subfolder
-                            logger.debug(f"从节点 {node.node_id} 获取文件: filename={params['filename']}, subfolder={subfolder}")
+                            logger.debug(f"从节点 {node.node_id} 获取文件: filename={params['filename']}, subfolder='{subfolder}', 原始路径='{file_path}'")
+                        else:
+                            logger.debug(f"从节点 {node.node_id} 获取文件: filename={params['filename']}, 无子目录")
 
+                        logger.debug(f"请求URL: {node_url}?{requests.compat.urlencode(params)}")
                         response = requests.get(node_url, params=params, timeout=10)
+                        logger.debug(f"节点 {node.node_id} 响应状态码: {response.status_code}")
+
                         if response.status_code == 200:
                             content = response.content
                             content_type = response.headers.get('content-type', 'application/octet-stream')
+                            logger.info(f"✅ 成功从节点 {node.node_id} 获取文件: {file_path}, 大小: {len(content)} bytes, 类型: {content_type}")
 
                             # 返回代理的文件内容
                             from fastapi.responses import Response
@@ -712,14 +720,17 @@ async def get_output_file(
                                     "Content-Disposition": f"inline; filename={os.path.basename(file_path)}"
                                 }
                             )
+                        else:
+                            logger.warning(f"节点 {node.node_id} 返回错误: {response.status_code}, 响应: {response.text[:200]}")
                     except Exception as e:
-                        logger.debug(f"从节点 {node.node_id} 获取文件失败: {e}")
+                        logger.error(f"从节点 {node.node_id} 获取文件失败: {e}")
                         continue
 
     except Exception as e:
         logger.error(f"分布式文件获取失败: {e}")
 
     # 所有方法都失败，返回404
+    logger.error(f"所有分布式获取方法都失败 - 文件路径: {file_path}")
     raise HTTPException(status_code=404, detail="文件不存在")
 
 
@@ -1054,11 +1065,13 @@ async def download_task_result_v2(
             return await get_output_file(file_path, credentials)
         except HTTPException as e:
             # 如果分布式获取也失败，返回原始错误
-            logger.warning(f"分布式文件获取失败: {e.detail}")
-            raise HTTPException(status_code=404, detail="文件不存在")
+            logger.error(f"分布式文件获取失败 - 任务ID: {task_id}, 文件路径: {file_path}, 错误: {e.detail}")
+            raise HTTPException(status_code=404, detail=f"文件不存在: {e.detail}")
         except Exception as e:
-            logger.error(f"分布式文件获取异常: {e}")
-            raise HTTPException(status_code=404, detail="文件不存在")
+            logger.error(f"分布式文件获取异常 - 任务ID: {task_id}, 文件路径: {file_path}, 异常: {e}")
+            import traceback
+            logger.error(f"异常堆栈: {traceback.format_exc()}")
+            raise HTTPException(status_code=404, detail=f"文件不存在: {str(e)}")
 
     filename = os.path.basename(file_path)
     return FileResponse(file_path, filename=filename)

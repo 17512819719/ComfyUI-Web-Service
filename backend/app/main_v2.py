@@ -2,8 +2,9 @@
 多模态内容生成工作流管理系统 - 主应用
 """
 import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
+from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -311,6 +312,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 添加请求日志中间件（可选，用于调试）
+# @app.middleware("http")
+# async def log_requests(request: Request, call_next):
+#     start_time = time.time()
+#     response = await call_next(request)
+#     process_time = time.time() - start_time
+#     logger.debug(f"{request.method} {request.url} - {response.status_code} ({process_time:.3f}s)")
+#     return response
+
 # 静态文件服务
 import os
 from fastapi.staticfiles import StaticFiles
@@ -429,6 +439,9 @@ async def global_exception_handler(request, exc):
 try:
     from .api.routes import router as api_router
     app.include_router(api_router)
+
+    # 路由注册成功
+
 except ImportError as e:
     logger.error(f"导入API路由失败: {e}")
     # 创建一个空的路由器作为备用

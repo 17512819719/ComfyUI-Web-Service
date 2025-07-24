@@ -237,7 +237,12 @@ class BaseWorkflowTask(Task):
                                 if node_id != "default":
                                     # 分布式模式：使用相对路径，代理服务会处理
                                     if subfolder:
-                                        file_path = f"{subfolder}/{filename}"
+                                        # 保持ComfyUI原始的路径分隔符格式
+                                        # ComfyUI在Windows上通常使用反斜杠
+                                        if '\\' in subfolder:
+                                            file_path = f"{subfolder}\\{filename}"
+                                        else:
+                                            file_path = f"{subfolder}/{filename}"
                                     else:
                                         file_path = filename
                                     files.append(file_path)

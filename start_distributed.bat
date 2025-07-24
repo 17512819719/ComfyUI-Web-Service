@@ -136,6 +136,8 @@ echo.
 
 call .venv/Scripts/activate && cd backend && python -m uvicorn app.main_v2:app --host 0.0.0.0 --port 8000 --log-level info --reload
 
+@REM start "FastAPI Worker - ComfyUI Distributed" cmd /k "call .venv\Scripts\activate.bat && echo [INFO] Starting FastAPI Server... && cd backend && python -m uvicorn app.main_v2:app --host 0.0.0.0 --port 8000 --log-level debug --access-log --reload"
+
 @REM --workers
 
 echo.

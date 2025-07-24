@@ -376,6 +376,18 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
         # 调试日志
         logger.debug(f"转换文件路径: {file_path}")
 
+        # 检查是否为分布式模式
+        try:
+            from ..core.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            if config_manager.is_distributed_mode():
+                # 分布式模式下，相对路径文件应该通过代理接口访问
+                # 不生成静态文件URL，直接返回None使用下载接口
+                logger.debug(f"分布式模式，使用代理接口访问文件: {file_path}")
+                return None
+        except Exception as e:
+            logger.warning(f"检查分布式模式失败: {e}")
+
         # 标准化路径分隔符
         file_path = file_path.replace('\\', '/')
 
