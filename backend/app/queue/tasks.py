@@ -256,10 +256,6 @@ class BaseWorkflowTask(Task):
                                     else:
                                         logger.warning(f"输出文件不存在: {file_path}")
 
-            # 不再复制文件，直接使用ComfyUI生成的文件路径
-            # 只记录文件路径，不进行额外的文件操作
-            logger.info(f"使用ComfyUI原始输出文件，不进行复制操作")
-
             # 返回处理后的结果
             processed_result = {
                 'files': files,

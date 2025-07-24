@@ -690,9 +690,13 @@ async def get_output_file(
                         params = {"filename": os.path.basename(file_path)}
 
                         # 如果文件在子目录中，需要添加subfolder参数
-                        if '/' in file_path:
+                        # 注意：ComfyUI期望使用反斜杠作为路径分隔符
+                        if '/' in file_path or '\\' in file_path:
                             subfolder = os.path.dirname(file_path)
+                            # 将正斜杠转换为反斜杠，因为ComfyUI使用反斜杠
+                            subfolder = subfolder.replace('/', '\\')
                             params["subfolder"] = subfolder
+                            logger.debug(f"从节点 {node.node_id} 获取文件: filename={params['filename']}, subfolder={subfolder}")
 
                         response = requests.get(node_url, params=params, timeout=10)
                         if response.status_code == 200:
