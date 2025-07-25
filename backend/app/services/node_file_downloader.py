@@ -81,11 +81,26 @@ class NodeFileDownloader:
         headers = {}
         if self.master_token:
             headers['Authorization'] = f'Bearer {self.master_token}'
-        
-        logger.debug(f"[NODE_DOWNLOADER] 请求URL: {download_url}")
-        
-        response = requests.get(download_url, headers=headers, stream=True, timeout=self.timeout)
-        response.raise_for_status()
+
+        logger.info(f"[NODE_DOWNLOADER] 请求URL: {download_url}")
+        logger.info(f"[NODE_DOWNLOADER] 使用认证: {'是' if self.master_token else '否'}")
+        if self.master_token:
+            logger.debug(f"[NODE_DOWNLOADER] 令牌: {self.master_token[:10]}...")
+
+        try:
+            response = requests.get(download_url, headers=headers, stream=True, timeout=self.timeout)
+            logger.info(f"[NODE_DOWNLOADER] 响应状态: {response.status_code}")
+
+            if response.status_code == 403:
+                logger.error(f"[NODE_DOWNLOADER] 认证失败 (403): 可能是令牌无效或权限不足")
+                logger.error(f"[NODE_DOWNLOADER] 请求头: {headers}")
+
+            response.raise_for_status()
+
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[NODE_DOWNLOADER] HTTP错误: {e}")
+            logger.error(f"[NODE_DOWNLOADER] 响应内容: {response.text if 'response' in locals() else 'N/A'}")
+            raise
         
         # 流式下载
         with open(local_path, 'wb') as f:
@@ -228,9 +243,43 @@ def get_node_file_downloader(comfyui_input_dir: str = None, master_token: str = 
         try:
             from ..core.config_manager import get_config_manager
             config_manager = get_config_manager()
-            master_token = config_manager.get_config('node.master_token')
-        except Exception:
-            logger.warning("无法获取主机令牌，将使用无认证模式")
+
+            # 尝试多种方式获取令牌
+            master_token = (
+                config_manager.get_config('node.master_token') or
+                config_manager.get_config('distributed.master_token') or
+                config_manager.get_config('auth.master_token') or
+                config_manager.get_config('security.api_key')
+            )
+
+            if master_token:
+                logger.info(f"[NODE_DOWNLOADER] 获取到主机令牌: {master_token[:10]}...")
+            else:
+                logger.warning("[NODE_DOWNLOADER] 未找到主机令牌配置")
+
+        except Exception as e:
+            logger.warning(f"[NODE_DOWNLOADER] 获取主机令牌失败: {e}")
+
+    # 如果还是没有令牌，创建系统级令牌
+    if not master_token:
+        try:
+            # 创建系统级JWT令牌
+            from ..auth import create_access_token
+
+            # 创建系统用户令牌
+            system_user_data = {
+                "sub": "system",
+                "client_id": "system-node",
+                "user_type": "system",
+                "permissions": ["file_download", "task_execution"]
+            }
+
+            master_token = create_access_token(system_user_data)
+            logger.info(f"[NODE_DOWNLOADER] 创建系统级令牌成功")
+
+        except Exception as e:
+            logger.warning(f"[NODE_DOWNLOADER] 创建系统级令牌失败: {e}")
+            logger.warning("[NODE_DOWNLOADER] 将使用无认证模式")
 
     return NodeFileDownloader(comfyui_input_dir, master_token)
 

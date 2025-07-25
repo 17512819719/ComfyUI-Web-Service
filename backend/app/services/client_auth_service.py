@@ -50,6 +50,13 @@ class ClientAuthService:
             username: str = payload.get("sub")
             if username is None:
                 raise HTTPException(status_code=401, detail="无效的认证令牌")
+
+            # 检查是否为系统用户
+            user_type = payload.get("user_type")
+            if user_type == "system":
+                # 系统用户，直接返回payload
+                return payload
+
             return payload
         except JWTError:
             raise HTTPException(status_code=401, detail="无效的认证令牌")
