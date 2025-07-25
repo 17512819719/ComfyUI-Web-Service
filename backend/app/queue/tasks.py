@@ -598,7 +598,10 @@ class BaseWorkflowTask(Task):
             # 处理文件下载（如果需要）
             if 'image_download_info' in request_data:
                 try:
+                    download_info = request_data['image_download_info']
                     logger.info(f"[TASK] 检测到图片下载信息，开始处理文件下载: {task_id}")
+                    logger.info(f"[TASK] 下载URL: {download_info.get('download_url')}")
+                    logger.info(f"[TASK] 本地路径: {download_info.get('local_path')}")
 
                     # 更新进度
                     self.update_task_status(task_id, {
@@ -612,13 +615,18 @@ class BaseWorkflowTask(Task):
                     file_processor = get_task_file_processor()
 
                     # 处理任务文件下载
+                    original_image_path = request_data.get('image', '')
                     request_data = file_processor.process_task_files(request_data)
+                    new_image_path = request_data.get('image', '')
 
                     logger.info(f"[TASK] 文件下载处理完成: {task_id}")
+                    logger.info(f"[TASK] 图片路径更新: {original_image_path} -> {new_image_path}")
 
                 except Exception as e:
-                    logger.warning(f"[TASK] 文件下载处理失败，继续执行任务: {e}")
-                    # 不中断任务执行，只是记录警告
+                    logger.error(f"[TASK] 文件下载处理失败，继续执行任务: {e}")
+                    import traceback
+                    logger.error(f"[TASK] 错误堆栈: {traceback.format_exc()}")
+                    # 不中断任务执行，只是记录错误
 
             # 获取工作流参数处理器
             from ..core.workflow_parameter_processor import get_workflow_parameter_processor

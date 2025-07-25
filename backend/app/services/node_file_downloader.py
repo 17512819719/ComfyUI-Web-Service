@@ -31,12 +31,19 @@ class NodeFileDownloader:
             local_path = download_info['local_path']
             expected_size = download_info.get('file_size', 0)
             filename = download_info.get('filename', os.path.basename(local_path))
-            
+
             logger.info(f"[NODE_DOWNLOADER] 开始下载文件: {download_url}")
-            
+            logger.info(f"[NODE_DOWNLOADER] 目标路径: {local_path}")
+            logger.info(f"[NODE_DOWNLOADER] 输入目录: {self.input_dir}")
+
             # 构建本地完整路径
             local_full_path = os.path.join(self.input_dir, local_path)
-            os.makedirs(os.path.dirname(local_full_path), exist_ok=True)
+
+            # 确保目录存在
+            local_dir = os.path.dirname(local_full_path)
+            os.makedirs(local_dir, exist_ok=True)
+            logger.info(f"[NODE_DOWNLOADER] 完整路径: {local_full_path}")
+            logger.info(f"[NODE_DOWNLOADER] 目录创建: {local_dir}")
             
             # 检查文件是否已存在且大小正确
             if os.path.exists(local_full_path):
@@ -147,32 +154,37 @@ class TaskFileProcessor:
     def process_task_files(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """处理任务中的文件下载"""
         logger.info(f"[TASK_FILE_PROCESSOR] 开始处理任务文件: {task_data.get('task_id')}")
-        
+
         downloaded_files = []
-        
+
         try:
             # 检查是否有图片下载信息
             if 'image_download_info' in task_data:
                 download_info = task_data['image_download_info']
                 logger.info(f"[TASK_FILE_PROCESSOR] 发现图片下载信息: {download_info['download_url']}")
-                
+
                 # 下载图片文件
                 local_file_path = self.downloader.download_file(download_info)
                 downloaded_files.append(local_file_path)
-                
-                # 更新任务数据中的图片路径
-                task_data['image'] = download_info['local_path']
-                logger.info(f"[TASK_FILE_PROCESSOR] 图片路径已更新: {download_info['local_path']}")
-            
+
+                # 更新任务数据中的图片路径为下载后的完整路径
+                # 这样ComfyUI就能找到正确的文件
+                task_data['image'] = local_file_path
+                logger.info(f"[TASK_FILE_PROCESSOR] 图片路径已更新为完整路径: {local_file_path}")
+
+                # 同时保留原始相对路径信息
+                task_data['image_relative_path'] = download_info['local_path']
+                logger.info(f"[TASK_FILE_PROCESSOR] 保留相对路径: {download_info['local_path']}")
+
             # 可以扩展处理其他类型的文件下载
             # 例如：模型文件、配置文件等
-            
+
             # 将下载的文件列表添加到任务数据中，用于后续清理
             task_data['_downloaded_files'] = downloaded_files
-            
+
             logger.info(f"[TASK_FILE_PROCESSOR] 任务文件处理完成: {len(downloaded_files)} 个文件")
             return task_data
-            
+
         except Exception as e:
             logger.error(f"[TASK_FILE_PROCESSOR] 任务文件处理失败: {e}")
             # 清理已下载的文件
@@ -190,9 +202,27 @@ class TaskFileProcessor:
 def get_node_file_downloader(comfyui_input_dir: str = None, master_token: str = None) -> NodeFileDownloader:
     """获取从机文件下载器实例"""
     if comfyui_input_dir is None:
-        # 默认ComfyUI输入目录
-        comfyui_input_dir = os.path.join(os.getcwd(), 'ComfyUI', 'input')
-    
+        # 尝试从配置中获取ComfyUI输入目录
+        try:
+            from ..core.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            comfyui_config = config_manager.get_comfyui_config()
+
+            # 获取ComfyUI安装路径
+            comfyui_path = comfyui_config.get('path', 'E:/ComfyUI/ComfyUI')
+            comfyui_input_dir = os.path.join(comfyui_path, 'input')
+
+            logger.info(f"[NODE_DOWNLOADER] 使用ComfyUI输入目录: {comfyui_input_dir}")
+
+        except Exception as e:
+            logger.warning(f"[NODE_DOWNLOADER] 无法从配置获取ComfyUI路径: {e}")
+            # 回退到默认路径
+            comfyui_input_dir = 'E:/ComfyUI/ComfyUI/input'
+            logger.info(f"[NODE_DOWNLOADER] 使用默认ComfyUI输入目录: {comfyui_input_dir}")
+
+    # 确保输入目录存在
+    os.makedirs(comfyui_input_dir, exist_ok=True)
+
     if master_token is None:
         # 从配置中获取令牌
         try:
@@ -201,7 +231,7 @@ def get_node_file_downloader(comfyui_input_dir: str = None, master_token: str = 
             master_token = config_manager.get_config('node.master_token')
         except Exception:
             logger.warning("无法获取主机令牌，将使用无认证模式")
-    
+
     return NodeFileDownloader(comfyui_input_dir, master_token)
 
 
