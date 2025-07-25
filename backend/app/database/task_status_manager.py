@@ -67,16 +67,16 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
                 task_dict = self._task_to_dict(global_task)
 
                 # 调试日志：显示获取到的任务数据
-                logger.info(f"[DB_GET] 任务 {task_id} 全局任务数据:")
-                for key, value in task_dict.items():
-                    logger.info(f"  - {key}: {value}")
+                # logger.info(f"[DB_GET] 任务 {task_id} 全局任务数据:")
+                # for key, value in task_dict.items():
+                #     logger.info(f"  - {key}: {value}")
 
                 # 特别关注关键参数
-                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
-                logger.info(f"[DB_GET] 任务 {task_id} 全局任务关键参数检查:")
-                for param in critical_params:
-                    value = task_dict.get(param)
-                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+                # critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                # logger.info(f"[DB_GET] 任务 {task_id} 全局任务关键参数检查:")
+                # for param in critical_params:
+                #     value = task_dict.get(param)
+                #     logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
 
                 return task_dict
 
@@ -275,16 +275,16 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
                 }
 
                 # 调试日志：显示全局任务数据
-                logger.info(f"[DB_CREATE] 任务 {task_id} 全局任务数据:")
-                for key, value in global_task_data.items():
-                    logger.info(f"  - {key}: {value}")
+                # logger.info(f"[DB_CREATE] 任务 {task_id} 全局任务数据:")
+                # for key, value in global_task_data.items():
+                #     logger.info(f"  - {key}: {value}")
 
                 # 特别关注关键参数
-                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
-                logger.info(f"[DB_CREATE] 任务 {task_id} 全局关键参数检查:")
-                for param in critical_params:
-                    value = global_task_data.get(param)
-                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+                # critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                # logger.info(f"[DB_CREATE] 任务 {task_id} 全局关键参数检查:")
+                # for param in critical_params:
+                #     value = global_task_data.get(param)
+                #     logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
 
                 # 同步到全局任务
                 logger.info(f"[DB_CREATE] 任务 {task_id} 开始创建全局任务...")

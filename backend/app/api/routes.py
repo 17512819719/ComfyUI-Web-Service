@@ -440,6 +440,24 @@ async def submit_image_to_video_task(
             'estimated_time': estimated_time
         }
 
+        # 集成文件下载信息（如果任务包含图片）
+        if request_data.get('image'):
+            try:
+                from ..services.file_scenario_adapter import get_file_scenario_adapter
+                adapter = get_file_scenario_adapter()
+
+                # 为任务添加图片下载信息
+                enhanced_request_data = await adapter.handle_image_upload_to_node(request_data.copy())
+
+                # 如果成功添加了下载信息，更新request_data
+                if 'image_download_info' in enhanced_request_data:
+                    request_data['image_download_info'] = enhanced_request_data['image_download_info']
+                    logger.info(f"[API] 图生视频任务已添加图片下载信息: {task_id}")
+
+            except Exception as e:
+                logger.warning(f"[API] 添加图片下载信息失败，任务将继续: {e}")
+                # 不影响任务提交，继续执行
+
         # 准备参数数据
         parameters = []
         for key, value in request_data.items():
@@ -696,84 +714,128 @@ async def get_output_file(
     file_path: str,
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """获取输出文件 - 支持分布式图片代理"""
+    """获取输出文件 - 使用统一分布式文件服务"""
     verify_token(credentials.credentials)
 
-    # 首先尝试本地文件
-    output_dir = get_output_dir()
-    full_path = os.path.join(output_dir, file_path)
+    logger.info(f"[API] 获取输出文件请求: {file_path}")
 
-    # 安全检查：确保文件路径在输出目录内
-    if not is_safe_path(full_path, output_dir):
-        raise HTTPException(status_code=403, detail="访问被拒绝")
-
-    # 检查本地文件是否存在
-    if os.path.exists(full_path):
-        return FileResponse(full_path)
-
-    # 本地文件不存在，尝试从分布式节点获取
     try:
-        from ..core.config_manager import get_config_manager
-        config_manager = get_config_manager()
+        # 使用统一的分布式文件服务
+        from ..services.file_scenario_adapter import get_file_scenario_adapter
+        adapter = get_file_scenario_adapter()
 
-        if config_manager.is_distributed_mode():
-            # 尝试从所有节点获取文件
-            logger.debug(f"开始分布式文件获取 - 文件路径: {file_path}")
-            from ..core.node_manager import get_node_manager
-            node_manager = get_node_manager()
+        # 根据文件类型选择处理方式
+        file_type = adapter.get_file_type_from_path(file_path)
 
-            nodes_dict = node_manager.get_all_nodes()
-            logger.debug(f"获取到 {len(nodes_dict)} 个节点")
+        if file_type == 'image':
+            # 文生图输出处理
+            response = await adapter.handle_text_to_image_output(file_path)
+        elif file_type == 'video':
+            # 图生视频输出处理
+            response = await adapter.handle_image_to_video_output(file_path)
+        else:
+            # 通用文件处理
+            from ..services.distributed_file_service import get_distributed_file_service
+            service = get_distributed_file_service()
+            response = await service.get_output_file(file_path)
 
-            for node in nodes_dict.values():
-                if node.status.value == 'online':
-                    try:
-                        # 尝试从节点获取文件
-                        import requests
-                        node_url = f"{node.url}/view"
-                        params = {"filename": os.path.basename(file_path)}
+        logger.info(f"[API] 输出文件获取成功: {file_path}")
+        return response
 
-                        # 如果文件在子目录中，需要添加subfolder参数
-                        # 注意：ComfyUI期望使用反斜杠作为路径分隔符
-                        if '/' in file_path or '\\' in file_path:
-                            subfolder = os.path.dirname(file_path)
-                            # 保持原始路径分隔符，不进行转换
-                            # 因为ComfyUI会根据操作系统自动处理路径分隔符
-                            params["subfolder"] = subfolder
-                            logger.debug(f"从节点 {node.node_id} 获取文件: filename={params['filename']}, subfolder='{subfolder}', 原始路径='{file_path}'")
-                        else:
-                            logger.debug(f"从节点 {node.node_id} 获取文件: filename={params['filename']}, 无子目录")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] 输出文件获取失败: {file_path}, 错误: {e}")
+        raise HTTPException(status_code=500, detail=f"文件获取失败: {str(e)}")
 
-                        logger.debug(f"请求URL: {node_url}?{requests.compat.urlencode(params)}")
-                        response = requests.get(node_url, params=params, timeout=10)
-                        logger.debug(f"节点 {node.node_id} 响应状态码: {response.status_code}")
 
-                        if response.status_code == 200:
-                            content = response.content
-                            content_type = response.headers.get('content-type', 'application/octet-stream')
-                            logger.info(f"✅ 成功从节点 {node.node_id} 获取文件: {file_path}, 大小: {len(content)} bytes, 类型: {content_type}")
+@router.get("/api/v2/files/upload/{file_id}")
+async def download_upload_file_by_id(
+    file_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """通过文件ID下载上传文件（供从机使用）"""
+    verify_token(credentials.credentials)
 
-                            # 返回代理的文件内容
-                            from fastapi.responses import Response
-                            return Response(
-                                content=content,
-                                media_type=content_type,
-                                headers={
-                                    "Content-Disposition": f"inline; filename={os.path.basename(file_path)}"
-                                }
-                            )
-                        else:
-                            logger.warning(f"节点 {node.node_id} 返回错误: {response.status_code}, 响应: {response.text[:200]}")
-                    except Exception as e:
-                        logger.error(f"从节点 {node.node_id} 获取文件失败: {e}")
-                        continue
+    logger.info(f"[API] 上传文件下载请求(ID): {file_id}")
+
+    try:
+        # 使用统一的分布式文件服务
+        from ..services.file_scenario_adapter import get_file_scenario_adapter
+        adapter = get_file_scenario_adapter()
+
+        # 通过file_id获取文件信息
+        from ..services.file_service import get_file_service
+        file_service = get_file_service()
+        file_info = file_service.get_file_info(file_id)
+
+        if not file_info:
+            raise HTTPException(status_code=404, detail="文件不存在")
+
+        # 使用相对路径进行下载
+        from ..utils.path_utils import get_upload_dir
+        upload_dir = get_upload_dir()
+        relative_path = os.path.relpath(file_info['file_path'], upload_dir)
+
+        response = await adapter.handle_upload_file_download(relative_path, file_id)
+
+        logger.info(f"[API] 上传文件下载成功(ID): {file_id}")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] 上传文件下载失败(ID): {file_id}, 错误: {e}")
+        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
+
+
+@router.get("/api/v2/files/upload/path/{file_path:path}")
+async def download_upload_file_by_path(
+    file_path: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """通过相对路径下载上传文件（供从机使用）"""
+    verify_token(credentials.credentials)
+
+    logger.info(f"[API] 上传文件下载请求(路径): {file_path}")
+
+    try:
+        # 使用统一的分布式文件服务
+        from ..services.file_scenario_adapter import get_file_scenario_adapter
+        adapter = get_file_scenario_adapter()
+
+        response = await adapter.handle_upload_file_download(file_path)
+
+        logger.info(f"[API] 上传文件下载成功(路径): {file_path}")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] 上传文件下载失败(路径): {file_path}, 错误: {e}")
+        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
+
+
+@router.get("/api/v2/files/diagnose")
+async def diagnose_file_service(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """诊断分布式文件服务状态"""
+    verify_token(credentials.credentials)
+
+    try:
+        from ..services.distributed_file_service import diagnose_file_service
+        diagnosis = diagnose_file_service()
+
+        return {
+            "success": True,
+            "diagnosis": diagnosis,
+            "message": "文件服务诊断完成"
+        }
 
     except Exception as e:
-        logger.error(f"分布式文件获取失败: {e}")
-
-    # 所有方法都失败，返回404
-    logger.error(f"所有分布式获取方法都失败 - 文件路径: {file_path}")
-    raise HTTPException(status_code=404, detail="文件不存在")
+        logger.error(f"[API] 文件服务诊断失败: {e}")
+        raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
 
 
 @router.get("/api/v2/tasks/{task_id}/status", response_model=TaskResponse)
@@ -1053,70 +1115,27 @@ async def download_task_result_v2(
     index: Optional[int] = Query(None, description="批量结果索引"),
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """下载任务结果"""
+    """下载任务结果 - 使用统一分布式文件服务"""
     verify_token(credentials.credentials)
 
-    # 从Redis状态管理器获取任务信息
-    status_manager = get_status_manager()
-    task_info = status_manager.get_task_status(task_id)
+    logger.info(f"[API] 任务文件下载请求: task_id={task_id}, index={index}")
 
-    if not task_info:
-        raise HTTPException(status_code=404, detail="任务不存在")
+    try:
+        # 使用统一的文件场景适配器
+        from ..services.file_scenario_adapter import get_file_scenario_adapter
+        adapter = get_file_scenario_adapter()
 
-    if task_info.get('status') != TaskStatusEnum.COMPLETED.value:
-        raise HTTPException(status_code=400, detail="任务尚未完成")
+        # 处理任务文件下载
+        response = await adapter.handle_task_file_download(task_id, index or 0)
 
-    result_data = task_info.get('result_data', {})
-    files = result_data.get('files', [])
+        logger.info(f"[API] 任务文件下载成功: task_id={task_id}, index={index}")
+        return response
 
-    if not files:
-        raise HTTPException(status_code=404, detail="未找到结果文件")
-
-    # 处理批量结果
-    if isinstance(files, list):
-        if index is None:
-            if len(files) == 1:
-                file_path = files[0]
-            else:
-                raise HTTPException(status_code=400, detail="请指定要下载的文件索引")
-        else:
-            if index < 0 or index >= len(files):
-                raise HTTPException(status_code=404, detail="文件索引超出范围")
-            file_path = files[index]
-    else:
-        file_path = files
-
-    if not os.path.exists(file_path):
-        # 本地文件不存在，尝试通过分布式文件代理获取
-        logger.debug(f"本地文件不存在，尝试分布式获取: {file_path}")
-        try:
-            # 将绝对路径转换为相对路径（如果需要）
-            if os.path.isabs(file_path):
-                # 尝试提取相对于输出目录的路径
-                output_dir = get_output_dir()
-                try:
-                    relative_path = os.path.relpath(file_path, output_dir)
-                    # 确保是相对路径且不包含 ".."
-                    if not relative_path.startswith('..'):
-                        file_path = relative_path
-                except ValueError:
-                    # 如果无法计算相对路径，使用文件名
-                    file_path = os.path.basename(file_path)
-
-            # 调用分布式文件获取逻辑
-            return await get_output_file(file_path, credentials)
-        except HTTPException as e:
-            # 如果分布式获取也失败，返回原始错误
-            logger.error(f"分布式文件获取失败 - 任务ID: {task_id}, 文件路径: {file_path}, 错误: {e.detail}")
-            raise HTTPException(status_code=404, detail=f"文件不存在: {e.detail}")
-        except Exception as e:
-            logger.error(f"分布式文件获取异常 - 任务ID: {task_id}, 文件路径: {file_path}, 异常: {e}")
-            import traceback
-            logger.error(f"异常堆栈: {traceback.format_exc()}")
-            raise HTTPException(status_code=404, detail=f"文件不存在: {str(e)}")
-
-    filename = os.path.basename(file_path)
-    return FileResponse(file_path, filename=filename)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] 任务文件下载失败: task_id={task_id}, 错误: {e}")
+        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
 
 
 @router.get("/api/v2/tasks")

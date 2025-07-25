@@ -276,3 +276,38 @@ def copy_file_to_output(source_path: str, target_filename: Optional[str] = None)
     except Exception as e:
         logger.error(f"复制文件失败: {e}")
         return None
+
+
+def get_file_extension(file_path: str) -> str:
+    """获取文件扩展名（小写）"""
+    return os.path.splitext(file_path)[1].lower()
+
+
+def is_image_file(file_path: str) -> bool:
+    """判断是否为图片文件"""
+    image_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.svg'}
+    return get_file_extension(file_path) in image_extensions
+
+
+def is_video_file(file_path: str) -> bool:
+    """判断是否为视频文件"""
+    video_extensions = {'.mp4', '.avi', '.mov', '.webm', '.mkv', '.flv', '.wmv', '.m4v'}
+    return get_file_extension(file_path) in video_extensions
+
+
+def is_audio_file(file_path: str) -> bool:
+    """判断是否为音频文件"""
+    audio_extensions = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a'}
+    return get_file_extension(file_path) in audio_extensions
+
+
+def get_file_type(file_path: str) -> str:
+    """获取文件类型"""
+    if is_image_file(file_path):
+        return 'image'
+    elif is_video_file(file_path):
+        return 'video'
+    elif is_audio_file(file_path):
+        return 'audio'
+    else:
+        return 'unknown'

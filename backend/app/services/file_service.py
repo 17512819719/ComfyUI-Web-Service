@@ -124,6 +124,80 @@ class FileService:
         except Exception as e:
             logger.error(f"文件上传失败: {e}")
             return None
+
+    def get_file_info(self, file_id: str) -> Optional[Dict[str, Any]]:
+        """通过文件ID获取文件信息"""
+        try:
+            # 先从客户端上传表查找
+            client_upload = self.client_upload_dao.get_by_field('file_id', file_id)
+            if client_upload:
+                return {
+                    'file_id': client_upload.file_id,
+                    'original_name': client_upload.original_name,
+                    'file_path': client_upload.file_path,
+                    'file_size': client_upload.file_size,
+                    'mime_type': client_upload.mime_type,
+                    'width': client_upload.width,
+                    'height': client_upload.height,
+                    'created_at': client_upload.created_at.isoformat() if client_upload.created_at else None
+                }
+
+            # 如果客户端表没有，从全局文件表查找
+            global_file = self.global_file_dao.get_by_field('file_id', file_id)
+            if global_file:
+                return {
+                    'file_id': global_file.file_id,
+                    'original_name': global_file.original_name,
+                    'file_path': global_file.file_path,
+                    'file_size': global_file.file_size,
+                    'mime_type': global_file.mime_type,
+                    'width': global_file.width,
+                    'height': global_file.height,
+                    'created_at': global_file.created_at.isoformat() if global_file.created_at else None
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"获取文件信息失败 [{file_id}]: {e}")
+            return None
+
+    def get_file_info_by_path(self, file_path: str) -> Optional[Dict[str, Any]]:
+        """通过文件路径获取文件信息"""
+        try:
+            # 先从客户端上传表查找
+            client_upload = self.client_upload_dao.get_by_field('file_path', file_path)
+            if client_upload:
+                return {
+                    'file_id': client_upload.file_id,
+                    'original_name': client_upload.original_name,
+                    'file_path': client_upload.file_path,
+                    'file_size': client_upload.file_size,
+                    'mime_type': client_upload.mime_type,
+                    'width': client_upload.width,
+                    'height': client_upload.height,
+                    'created_at': client_upload.created_at.isoformat() if client_upload.created_at else None
+                }
+
+            # 如果客户端表没有，从全局文件表查找
+            global_file = self.global_file_dao.get_by_field('file_path', file_path)
+            if global_file:
+                return {
+                    'file_id': global_file.file_id,
+                    'original_name': global_file.original_name,
+                    'file_path': global_file.file_path,
+                    'file_size': global_file.file_size,
+                    'mime_type': global_file.mime_type,
+                    'width': global_file.width,
+                    'height': global_file.height,
+                    'created_at': global_file.created_at.isoformat() if global_file.created_at else None
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"通过路径获取文件信息失败 [{file_path}]: {e}")
+            return None
     
     def get_user_files(self, client_id: str, file_type: str = None,
                       limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
