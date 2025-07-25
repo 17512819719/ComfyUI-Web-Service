@@ -218,20 +218,48 @@ class DistributedFileService:
         if base_dir is None:
             from ..utils.path_utils import get_output_dir
             base_dir = get_output_dir()
-        
+
+        logger.info(f"[DISTRIBUTED_FILE] 检查本地文件: {file_path}")
+        logger.info(f"[DISTRIBUTED_FILE] 基础目录: {base_dir}")
+
         full_path = os.path.join(base_dir, file_path)
-        
+        logger.info(f"[DISTRIBUTED_FILE] 完整路径: {full_path}")
+
         # 安全检查
         from ..utils.path_utils import is_safe_path
         if not is_safe_path(full_path, base_dir):
             logger.warning(f"[DISTRIBUTED_FILE] 不安全的文件路径: {file_path}")
             return None
-        
-        if os.path.exists(full_path):
-            logger.info(f"[DISTRIBUTED_FILE] 本地文件存在: {full_path}")
-            return full_path
-        
-        # logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在: {full_path}")
+
+        # 检查文件是否存在
+        exists = os.path.exists(full_path)
+        logger.info(f"[DISTRIBUTED_FILE] 文件存在: {exists}")
+
+        if exists:
+            # 检查是否为文件（不是目录）
+            is_file = os.path.isfile(full_path)
+            logger.info(f"[DISTRIBUTED_FILE] 是文件: {is_file}")
+
+            if is_file:
+                file_size = os.path.getsize(full_path)
+                logger.info(f"[DISTRIBUTED_FILE] 文件大小: {file_size} bytes")
+                return full_path
+            else:
+                logger.warning(f"[DISTRIBUTED_FILE] 路径存在但不是文件: {full_path}")
+        else:
+            # 如果文件不存在，检查目录是否存在
+            dir_path = os.path.dirname(full_path)
+            dir_exists = os.path.exists(dir_path)
+            logger.info(f"[DISTRIBUTED_FILE] 目录存在: {dir_exists} ({dir_path})")
+
+            if dir_exists:
+                # 列出目录内容
+                try:
+                    files_in_dir = os.listdir(dir_path)
+                    logger.info(f"[DISTRIBUTED_FILE] 目录内容: {files_in_dir}")
+                except Exception as e:
+                    logger.warning(f"[DISTRIBUTED_FILE] 无法列出目录内容: {e}")
+
         return None
     
     async def proxy_from_node(self, file_path: str, node_info: Dict[str, Any] = None) -> Response:
@@ -311,8 +339,12 @@ class DistributedFileService:
         """获取上传文件（用于从机下载主机上传的文件）"""
         logger.info(f"[DISTRIBUTED_FILE] 获取上传文件请求: {file_path}, file_id: {file_id}")
 
+        # 获取上传基础目录
+        upload_base_dir = self._get_upload_base_dir()
+        logger.info(f"[DISTRIBUTED_FILE] 上传基础目录: {upload_base_dir}")
+
         # 1. 检查上传目录中的本地文件
-        local_file_path = self.check_local_file(file_path, self._get_upload_base_dir())
+        local_file_path = self.check_local_file(file_path, upload_base_dir)
         if local_file_path:
             logger.info(f"[DISTRIBUTED_FILE] 返回本地上传文件: {local_file_path}")
             return FileResponse(local_file_path)
@@ -356,29 +388,51 @@ class DistributedFileService:
             ]
 
             logger.info(f"[DISTRIBUTED_FILE] 回退检查上传文件: {file_path}")
+            logger.info(f"[DISTRIBUTED_FILE] 标准化路径: {normalized_file_path}")
 
             for upload_dir in possible_dirs:
+                logger.info(f"[DISTRIBUTED_FILE] 检查目录: {upload_dir}")
+                logger.info(f"[DISTRIBUTED_FILE] 目录存在: {os.path.exists(upload_dir)}")
+
                 if os.path.exists(upload_dir):
                     # 尝试原始路径
                     full_path = os.path.join(upload_dir, file_path)
+                    logger.info(f"[DISTRIBUTED_FILE] 尝试原始路径: {full_path}")
+                    logger.info(f"[DISTRIBUTED_FILE] 原始路径存在: {os.path.exists(full_path)}")
+
                     if os.path.exists(full_path):
                         logger.info(f"[DISTRIBUTED_FILE] 回退检查找到上传文件: {full_path}")
                         return FileResponse(full_path)
 
                     # 尝试标准化路径
                     full_path_normalized = os.path.join(upload_dir, normalized_file_path)
+                    logger.info(f"[DISTRIBUTED_FILE] 尝试标准化路径: {full_path_normalized}")
+                    logger.info(f"[DISTRIBUTED_FILE] 标准化路径存在: {os.path.exists(full_path_normalized)}")
+
                     if os.path.exists(full_path_normalized):
                         logger.info(f"[DISTRIBUTED_FILE] 回退检查找到上传文件(标准化): {full_path_normalized}")
                         return FileResponse(full_path_normalized)
 
+                    # 列出目录内容进行调试
+                    try:
+                        dir_to_check = os.path.dirname(full_path)
+                        if os.path.exists(dir_to_check):
+                            files_in_dir = os.listdir(dir_to_check)
+                            logger.info(f"[DISTRIBUTED_FILE] 目录 {dir_to_check} 内容: {files_in_dir}")
+                    except Exception as e:
+                        logger.warning(f"[DISTRIBUTED_FILE] 无法列出目录内容: {e}")
+
             # 所有尝试都失败
             logger.error(f"[DISTRIBUTED_FILE] 回退检查也无法找到上传文件: {file_path}")
+            logger.error(f"[DISTRIBUTED_FILE] 已检查的目录: {possible_dirs}")
             raise HTTPException(status_code=404, detail=f"上传文件不存在: {file_path}")
 
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"[DISTRIBUTED_FILE] 上传文件回退检查异常: {e}")
+            import traceback
+            logger.error(f"[DISTRIBUTED_FILE] 错误堆栈: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"上传文件获取失败: {str(e)}")
 
     async def _fallback_local_check(self, file_path: str) -> Response:

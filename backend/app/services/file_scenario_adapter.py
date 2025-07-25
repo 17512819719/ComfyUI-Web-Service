@@ -204,11 +204,38 @@ class FileScenarioAdapter:
             # 如果任务数据中有file_id，优先使用
             if 'image_file_id' in task_data:
                 file_info = file_service.get_file_info(task_data['image_file_id'])
+                logger.info(f"[SCENARIO_ADAPTER] 通过file_id获取文件信息: {file_info is not None}")
 
             # 如果没有找到，尝试通过路径查找
             if not file_info:
-                # 这里可以实现通过路径查找文件信息的逻辑
-                pass
+                logger.info(f"[SCENARIO_ADAPTER] 尝试通过路径查找文件信息: {file_path}")
+
+                # 构建可能的完整路径进行查找
+                from ..utils.path_utils import get_upload_dir
+                upload_dir = get_upload_dir()
+                full_file_path = os.path.join(upload_dir, file_path)
+
+                logger.info(f"[SCENARIO_ADAPTER] 构建完整路径: {full_file_path}")
+
+                # 通过路径查找文件信息
+                file_info = file_service.get_file_info_by_path(full_file_path)
+
+                if file_info:
+                    logger.info(f"[SCENARIO_ADAPTER] 通过路径找到文件信息: {file_info['file_id']}")
+                else:
+                    logger.warning(f"[SCENARIO_ADAPTER] 通过路径未找到文件信息: {full_file_path}")
+
+                    # 如果还是找不到，检查文件是否实际存在
+                    if os.path.exists(full_file_path):
+                        logger.info(f"[SCENARIO_ADAPTER] 文件存在但数据库中无记录，创建临时文件信息")
+                        # 创建临时文件信息
+                        file_info = {
+                            'file_id': None,
+                            'file_path': full_file_path,
+                            'file_size': os.path.getsize(full_file_path)
+                        }
+                    else:
+                        logger.error(f"[SCENARIO_ADAPTER] 文件不存在: {full_file_path}")
 
             # 构建下载URL
             from ..core.config_manager import get_config_manager
