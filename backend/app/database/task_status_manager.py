@@ -58,20 +58,55 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """获取任务状态"""
         try:
+            logger.info(f"[DB_GET] 开始获取任务状态: {task_id}")
+
             # 首先尝试从全局任务获取
             global_task = self.global_task_dao.get_task_by_task_id(task_id)
             if global_task:
-                return self._task_to_dict(global_task)
-            
+                logger.info(f"[DB_GET] 任务 {task_id} 从全局任务表获取成功")
+                task_dict = self._task_to_dict(global_task)
+
+                # 调试日志：显示获取到的任务数据
+                logger.info(f"[DB_GET] 任务 {task_id} 全局任务数据:")
+                for key, value in task_dict.items():
+                    logger.info(f"  - {key}: {value}")
+
+                # 特别关注关键参数
+                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                logger.info(f"[DB_GET] 任务 {task_id} 全局任务关键参数检查:")
+                for param in critical_params:
+                    value = task_dict.get(param)
+                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+
+                return task_dict
+
             # 如果全局任务不存在，尝试从客户端任务获取
             client_task = self.client_task_dao.get_task_by_task_id(task_id)
             if client_task:
-                return self._task_to_dict(client_task)
-            
+                logger.info(f"[DB_GET] 任务 {task_id} 从客户端任务表获取成功")
+                task_dict = self._task_to_dict(client_task)
+
+                # 调试日志：显示获取到的任务数据
+                logger.info(f"[DB_GET] 任务 {task_id} 客户端任务数据:")
+                for key, value in task_dict.items():
+                    logger.info(f"  - {key}: {value}")
+
+                # 特别关注关键参数
+                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                logger.info(f"[DB_GET] 任务 {task_id} 客户端任务关键参数检查:")
+                for param in critical_params:
+                    value = task_dict.get(param)
+                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+
+                return task_dict
+
+            logger.warning(f"[DB_GET] 任务 {task_id} 在数据库中不存在")
             return None
-            
+
         except Exception as e:
-            logger.error(f"获取任务状态失败 [{task_id}]: {e}")
+            logger.error(f"[DB_GET] 获取任务状态失败 [{task_id}]: {e}")
+            import traceback
+            logger.error(f"[DB_GET] 错误堆栈: {traceback.format_exc()}")
             return None
     
     def update_task_status(self, task_id: str, updates: Dict[str, Any]) -> bool:
@@ -155,12 +190,20 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
     
     def create_task(self, task_data: Dict[str, Any], source_type: str = 'client') -> bool:
         """创建任务"""
+        task_id = task_data.get('task_id', 'unknown')
         try:
+            logger.info(f"[DB_CREATE] 开始创建任务 {task_id}, source_type: {source_type}")
+
+            # 调试日志：显示原始任务数据
+            logger.info(f"[DB_CREATE] 任务 {task_id} 原始数据:")
+            for key, value in task_data.items():
+                logger.info(f"  - {key}: {value}")
+
             # 提取参数
             parameters = task_data.pop('parameters', [])
 
             if source_type == 'client':
-                # 为客户端任务准备数据（只保留客户端任务表有的字段）
+                # 为客户端任务准备数据（包含所有必要字段）
                 client_task_data = {
                     'task_id': task_data.get('task_id'),
                     'client_id': task_data.get('client_id'),
@@ -168,18 +211,44 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
                     'workflow_name': task_data.get('workflow_name'),
                     'prompt': task_data.get('prompt', ''),
                     'negative_prompt': task_data.get('negative_prompt', ''),
+                    # 添加关键生成参数
+                    'model_name': task_data.get('model_name'),
+                    'width': task_data.get('width'),
+                    'height': task_data.get('height'),
+                    'steps': task_data.get('steps'),
+                    'cfg_scale': task_data.get('cfg_scale'),
+                    'sampler': task_data.get('sampler'),
+                    'scheduler': task_data.get('scheduler'),
+                    'seed': task_data.get('seed'),
+                    'batch_size': task_data.get('batch_size', 1),
                     'status': task_data.get('status'),
                     'progress': task_data.get('progress', 0),
                     'message': task_data.get('message'),
                     'estimated_time': task_data.get('estimated_time')
                 }
 
+                # 调试日志：显示客户端任务数据
+                logger.info(f"[DB_CREATE] 任务 {task_id} 客户端任务数据:")
+                for key, value in client_task_data.items():
+                    logger.info(f"  - {key}: {value}")
+
+                # 特别关注关键参数
+                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                logger.info(f"[DB_CREATE] 任务 {task_id} 客户端关键参数检查:")
+                for param in critical_params:
+                    value = client_task_data.get(param)
+                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+
                 # 创建客户端任务
+                logger.info(f"[DB_CREATE] 任务 {task_id} 开始创建客户端任务...")
                 client_task = self.client_task_dao.create_task(client_task_data, parameters)
                 if not client_task:
+                    logger.error(f"[DB_CREATE] 任务 {task_id} 客户端任务创建失败")
                     return False
+                else:
+                    logger.info(f"[DB_CREATE] 任务 {task_id} 客户端任务创建成功，数据库ID: {client_task.id}")
 
-                # 为全局任务准备数据（只保留全局任务表有的字段）
+                # 为全局任务准备数据（包含所有必要字段）
                 global_task_data = {
                     'task_id': task_data.get('task_id'),
                     'source_type': source_type,
@@ -188,6 +257,16 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
                     'workflow_name': task_data.get('workflow_name'),
                     'prompt': task_data.get('prompt', ''),
                     'negative_prompt': task_data.get('negative_prompt', ''),
+                    # 添加关键生成参数
+                    'model_name': task_data.get('model_name'),
+                    'width': task_data.get('width'),
+                    'height': task_data.get('height'),
+                    'steps': task_data.get('steps'),
+                    'cfg_scale': task_data.get('cfg_scale'),
+                    'sampler': task_data.get('sampler'),
+                    'scheduler': task_data.get('scheduler'),
+                    'seed': task_data.get('seed'),
+                    'batch_size': task_data.get('batch_size', 1),
                     'status': task_data.get('status'),
                     'priority': task_data.get('priority', 1),
                     'progress': task_data.get('progress', 0),
@@ -195,18 +274,45 @@ class DatabaseTaskStatusManager(BaseTaskStatusManager):
                     'estimated_time': task_data.get('estimated_time')
                 }
 
+                # 调试日志：显示全局任务数据
+                logger.info(f"[DB_CREATE] 任务 {task_id} 全局任务数据:")
+                for key, value in global_task_data.items():
+                    logger.info(f"  - {key}: {value}")
+
+                # 特别关注关键参数
+                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                logger.info(f"[DB_CREATE] 任务 {task_id} 全局关键参数检查:")
+                for param in critical_params:
+                    value = global_task_data.get(param)
+                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+
                 # 同步到全局任务
+                logger.info(f"[DB_CREATE] 任务 {task_id} 开始创建全局任务...")
                 global_task = self.global_task_dao.create_task(global_task_data, parameters)
 
-                return global_task is not None
+                if global_task:
+                    logger.info(f"[DB_CREATE] 任务 {task_id} 全局任务创建成功，数据库ID: {global_task.id}")
+                    return True
+                else:
+                    logger.error(f"[DB_CREATE] 任务 {task_id} 全局任务创建失败")
+                    return False
             else:
                 # 直接创建全局任务
+                logger.info(f"[DB_CREATE] 任务 {task_id} 直接创建全局任务...")
                 task_data['source_type'] = source_type
                 global_task = self.global_task_dao.create_task(task_data, parameters)
-                return global_task is not None
+
+                if global_task:
+                    logger.info(f"[DB_CREATE] 任务 {task_id} 全局任务创建成功，数据库ID: {global_task.id}")
+                    return True
+                else:
+                    logger.error(f"[DB_CREATE] 任务 {task_id} 全局任务创建失败")
+                    return False
 
         except Exception as e:
-            logger.error(f"创建任务失败: {e}")
+            logger.error(f"[DB_CREATE] 任务 {task_id} 创建失败: {e}")
+            import traceback
+            logger.error(f"[DB_CREATE] 错误堆栈: {traceback.format_exc()}")
             return False
 
     def _save_task_results(self, task_id: str, result_data: Dict[str, Any]) -> bool:

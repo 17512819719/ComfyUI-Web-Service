@@ -544,12 +544,27 @@ class BaseWorkflowTask(Task):
                 pass
 
             # 更新任务状态为失败
+            logger.info(f"[TASK_FAILED] 任务 {task_id} 执行失败，更新状态...")
+
+            # 获取当前任务状态以检查参数是否完整
+            current_status = self.get_task_status(task_id)
+            if current_status:
+                logger.info(f"[TASK_FAILED] 任务 {task_id} 当前状态中的参数:")
+                critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
+                for param in critical_params:
+                    value = current_status.get(param)
+                    logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
+
             self.update_task_status(task_id, {
                 'status': TaskStatus.FAILED.value,
                 'message': f'任务执行失败: {str(e)}',
                 'error_message': str(e),
-                'progress': 0
+                'progress': 0,
+                'completed_at': datetime.now(),
+                'updated_at': datetime.now().isoformat()
             })
+
+            logger.info(f"[TASK_FAILED] 任务 {task_id} 失败状态更新完成")
 
             # 返回失败结果而不是抛出异常，避免 Celery Worker 崩溃
             return {
