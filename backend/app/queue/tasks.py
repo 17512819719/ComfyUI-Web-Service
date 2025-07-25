@@ -479,28 +479,25 @@ class BaseWorkflowTask(Task):
             )
 
             if result.status == TaskStatus.COMPLETED:
-                # 提取生成参数用于数据库存储
-                generation_params = {
-                    'prompt': request_data.get('prompt', ''),
-                    'negative_prompt': request_data.get('negative_prompt', ''),
-                    'width': request_data.get('width', 512),
-                    'height': request_data.get('height', 512),
-                    'seed': request_data.get('seed', -1),
-                    'workflow_name': workflow_name,
-                    'batch_id': request_data.get('batch_id', ''),
-                    'created_at': request_data.get('created_at', ''),
-                    'updated_at': datetime.now().isoformat()
-                }
+                # 从工作流中提取实际使用的参数（如果有的话）
+                workflow_extracted_params = self._extract_generation_params(request_data, complete_workflow)
 
                 # 更新任务状态为完成
                 update_data = {
                     'status': TaskStatus.COMPLETED.value,
                     'progress': 100,
                     'message': '文生图任务完成',
-                    'result_data': result.result_data
+                    'result_data': result.result_data,
+                    'completed_at': datetime.now(),
+                    'updated_at': datetime.now().isoformat()
                 }
-                # 添加生成参数
-                update_data.update(generation_params)
+
+                # 只添加从工作流中实际提取到的参数（避免覆盖已存储的参数）
+                if workflow_extracted_params:
+                    # 只更新那些从工作流中成功提取到且与原始参数不同的参数
+                    for key, value in workflow_extracted_params.items():
+                        if value is not None and key not in ['batch_id', 'created_at']:  # 排除非核心参数
+                            update_data[key] = value
 
                 self.update_task_status(task_id, update_data)
 
@@ -694,6 +691,8 @@ class BaseWorkflowTask(Task):
                 'status': 'completed',
                 'progress': 100,
                 'message': '图生视频任务执行成功',
+                'completed_at': datetime.now(),
+                'updated_at': datetime.now().isoformat(),
                 'result_data': {
                     'files': output_files,
                     'prompt_id': prompt_id
@@ -891,18 +890,25 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
 
         # 检查执行结果
         if result.status == TaskStatus.COMPLETED:
-            # 提取生成参数用于保存到数据库
-            generation_params = self._extract_generation_params(request_data, complete_workflow)
+            # 从工作流中提取实际使用的参数（如果有的话）
+            workflow_extracted_params = self._extract_generation_params(request_data, complete_workflow)
 
-            # 更新任务状态为完成，包含生成参数
+            # 更新任务状态为完成
             update_data = {
                 'status': TaskStatus.COMPLETED.value,
                 'message': '文生图任务完成',
                 'progress': 100,
-                'result_data': result.result_data
+                'result_data': result.result_data,
+                'completed_at': datetime.now(),
+                'updated_at': datetime.now().isoformat()
             }
-            # 添加生成参数
-            update_data.update(generation_params)
+
+            # 只添加从工作流中实际提取到的参数（避免覆盖已存储的参数）
+            if workflow_extracted_params:
+                # 只更新那些从工作流中成功提取到且与原始参数不同的参数
+                for key, value in workflow_extracted_params.items():
+                    if value is not None and key not in ['batch_id', 'created_at']:  # 排除非核心参数
+                        update_data[key] = value
 
             self.update_task_status(task_id, update_data)
 
