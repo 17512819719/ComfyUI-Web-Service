@@ -1,5 +1,9 @@
 # 多模态内容生成工作流管理系统配置
-version: "1.0"
+server:
+  host: "192.168.110.91"
+  port: 8000
+
+version: "2.0"
 
 # ComfyUI配置 (兼容性保留，用于单机模式)
 comfyui:
