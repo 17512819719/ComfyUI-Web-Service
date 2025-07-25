@@ -595,6 +595,31 @@ class BaseWorkflowTask(Task):
                 'message': '正在处理图生视频任务...'
             })
 
+            # 处理文件下载（如果需要）
+            if 'image_download_info' in request_data:
+                try:
+                    logger.info(f"[TASK] 检测到图片下载信息，开始处理文件下载: {task_id}")
+
+                    # 更新进度
+                    self.update_task_status(task_id, {
+                        'status': 'processing',
+                        'progress': 5,
+                        'message': '正在下载所需文件...'
+                    })
+
+                    # 处理文件下载
+                    from ..services.node_file_downloader import get_task_file_processor
+                    file_processor = get_task_file_processor()
+
+                    # 处理任务文件下载
+                    request_data = file_processor.process_task_files(request_data)
+
+                    logger.info(f"[TASK] 文件下载处理完成: {task_id}")
+
+                except Exception as e:
+                    logger.warning(f"[TASK] 文件下载处理失败，继续执行任务: {e}")
+                    # 不中断任务执行，只是记录警告
+
             # 获取工作流参数处理器
             from ..core.workflow_parameter_processor import get_workflow_parameter_processor
             processor = get_workflow_parameter_processor()
