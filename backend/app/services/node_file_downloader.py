@@ -230,23 +230,58 @@ class TaskFileProcessor:
 def get_node_file_downloader(comfyui_input_dir: str = None, master_token: str = None) -> NodeFileDownloader:
     """获取从机文件下载器实例"""
     if comfyui_input_dir is None:
-        # 尝试从配置中获取ComfyUI输入目录
-        try:
-            from ..core.config_manager import get_config_manager
-            config_manager = get_config_manager()
-            comfyui_config = config_manager.get_comfyui_config()
+        # 从机环境：自动检测本地ComfyUI安装路径
+        logger.info(f"[NODE_DOWNLOADER] 从机环境，自动检测本地ComfyUI安装")
 
-            # 获取ComfyUI安装路径
-            comfyui_path = comfyui_config.get('path', 'E:/ComfyUI/ComfyUI')
-            comfyui_input_dir = os.path.join(comfyui_path, 'input')
+        # 可能的ComfyUI安装路径（从机本地）
+        possible_paths = [
+            'E:/ComfyUI/ComfyUI',      # Windows常见路径
+            'D:/ComfyUI/ComfyUI',      # Windows常见路径
+            'C:/ComfyUI/ComfyUI',      # Windows常见路径
+            '/opt/ComfyUI',            # Linux路径
+            '/home/comfyui/ComfyUI',   # Linux用户路径
+            '/usr/local/ComfyUI',      # Linux系统路径
+            os.path.expanduser('~/ComfyUI/ComfyUI'),  # 用户目录
+        ]
 
-            logger.info(f"[NODE_DOWNLOADER] 使用ComfyUI输入目录: {comfyui_input_dir}")
+        comfyui_input_dir = None
 
-        except Exception as e:
-            logger.warning(f"[NODE_DOWNLOADER] 无法从配置获取ComfyUI路径: {e}")
-            # 回退到默认路径
-            comfyui_input_dir = 'E:/ComfyUI/ComfyUI/input'
-            logger.info(f"[NODE_DOWNLOADER] 使用默认ComfyUI输入目录: {comfyui_input_dir}")
+        for path in possible_paths:
+            logger.info(f"[NODE_DOWNLOADER] 检查路径: {path}")
+            if os.path.exists(path):
+                input_path = os.path.join(path, 'input')
+                # 确保input目录也存在
+                if os.path.exists(input_path):
+                    comfyui_input_dir = input_path
+                    logger.info(f"[NODE_DOWNLOADER] ✅ 找到ComfyUI安装: {path}")
+                    logger.info(f"[NODE_DOWNLOADER] ✅ 使用输入目录: {comfyui_input_dir}")
+                    break
+                else:
+                    # 如果input目录不存在，尝试创建
+                    try:
+                        os.makedirs(input_path, exist_ok=True)
+                        comfyui_input_dir = input_path
+                        logger.info(f"[NODE_DOWNLOADER] ✅ 创建输入目录: {comfyui_input_dir}")
+                        break
+                    except Exception as e:
+                        logger.warning(f"[NODE_DOWNLOADER] 无法创建输入目录 {input_path}: {e}")
+                        continue
+            else:
+                logger.info(f"[NODE_DOWNLOADER] ❌ 路径不存在: {path}")
+
+        if not comfyui_input_dir:
+            # 最后回退：使用当前工作目录
+            current_dir = os.getcwd()
+            comfyui_input_dir = os.path.join(current_dir, 'input')
+            logger.warning(f"[NODE_DOWNLOADER] ⚠️  未找到ComfyUI安装，使用当前目录: {comfyui_input_dir}")
+
+            # 确保目录存在
+            try:
+                os.makedirs(comfyui_input_dir, exist_ok=True)
+                logger.info(f"[NODE_DOWNLOADER] 创建回退目录: {comfyui_input_dir}")
+            except Exception as e:
+                logger.error(f"[NODE_DOWNLOADER] 无法创建回退目录: {e}")
+                raise Exception(f"无法确定ComfyUI输入目录: {e}")
 
     # 确保输入目录存在
     os.makedirs(comfyui_input_dir, exist_ok=True)
