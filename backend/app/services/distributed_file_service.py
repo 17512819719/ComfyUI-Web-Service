@@ -316,8 +316,14 @@ class DistributedFileService:
         """获取上传文件（用于从机下载主机上传的文件）"""
         logger.info(f"[DISTRIBUTED_FILE] 获取上传文件请求: {file_path}, file_id: {file_id}")
 
+        # 清理文件路径，移除可能的API路径前缀
+        clean_file_path = file_path
+        if clean_file_path.startswith('upload/path/'):
+            clean_file_path = clean_file_path[12:]  # 移除 'upload/path/' 前缀
+            logger.info(f"[DISTRIBUTED_FILE] 清理文件路径: {file_path} -> {clean_file_path}")
+
         # 1. 检查上传目录中的本地文件
-        local_file_path = self.check_local_file(file_path, self._get_upload_base_dir())
+        local_file_path = self.check_local_file(clean_file_path, self._get_upload_base_dir())
         if local_file_path:
             logger.info(f"[DISTRIBUTED_FILE] 返回本地上传文件: {local_file_path}")
             return FileResponse(local_file_path)
@@ -337,7 +343,7 @@ class DistributedFileService:
                 logger.warning(f"[DISTRIBUTED_FILE] 通过file_id获取文件失败: {e}")
 
         # 3. 尝试在上传目录的不同位置查找
-        return await self._fallback_upload_check(file_path)
+        return await self._fallback_upload_check(clean_file_path)
 
     def _get_upload_base_dir(self) -> str:
         """获取上传文件基础目录"""

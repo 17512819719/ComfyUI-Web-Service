@@ -24,8 +24,13 @@ class FileScenarioAdapter:
     async def handle_text_to_image_output(self, file_path: str) -> Response:
         """处理文生图输出获取场景"""
         logger.info(f"[SCENARIO_ADAPTER] 处理文生图输出: {file_path}")
-        
+
         try:
+            # 检查是否为上传文件路径（错误路由的情况）
+            if file_path.startswith('upload/path/'):
+                logger.info(f"[SCENARIO_ADAPTER] 检测到上传文件路径，重定向到上传文件处理: {file_path}")
+                return await self.handle_upload_file_download(file_path)
+
             # 使用分布式文件服务获取文件
             response = await self.service.get_output_file(file_path)
             
@@ -54,7 +59,46 @@ class FileScenarioAdapter:
         except Exception as e:
             logger.error(f"[SCENARIO_ADAPTER] 文生图输出处理失败: {file_path}, 错误: {e}")
             raise
-    
+
+    async def handle_upload_file_download(self, file_path: str) -> Response:
+        """处理上传文件下载请求"""
+        logger.info(f"[SCENARIO_ADAPTER] 处理上传文件下载: {file_path}")
+
+        try:
+            # 清理文件路径，移除API路径前缀
+            clean_file_path = file_path
+            if clean_file_path.startswith('upload/path/'):
+                clean_file_path = clean_file_path[12:]  # 移除 'upload/path/' 前缀
+                logger.info(f"[SCENARIO_ADAPTER] 清理上传文件路径: {file_path} -> {clean_file_path}")
+
+            # 使用分布式文件服务获取上传文件
+            response = await self.service.get_upload_file(clean_file_path)
+
+            # 添加适合图片的响应头
+            if hasattr(response, 'headers'):
+                # 检查文件扩展名，设置合适的Content-Type
+                file_ext = os.path.splitext(clean_file_path)[1].lower()
+                if file_ext in ['.jpg', '.jpeg']:
+                    response.media_type = 'image/jpeg'
+                elif file_ext in ['.png']:
+                    response.media_type = 'image/png'
+                elif file_ext in ['.webp']:
+                    response.media_type = 'image/webp'
+                elif file_ext in ['.gif']:
+                    response.media_type = 'image/gif'
+
+                # 设置缓存策略
+                response.headers.update({
+                    'Cache-Control': 'public, max-age=3600',  # 1小时缓存
+                    'Content-Disposition': f'inline; filename="{os.path.basename(clean_file_path)}"'
+                })
+
+            return response
+
+        except Exception as e:
+            logger.error(f"[SCENARIO_ADAPTER] 上传文件下载处理失败: {file_path}, 错误: {e}")
+            raise HTTPException(status_code=404, detail=f"上传文件不存在: {file_path}")
+
     async def handle_image_to_video_output(self, file_path: str) -> Response:
         """处理图生视频输出获取场景"""
         logger.info(f"[SCENARIO_ADAPTER] 处理图生视频输出: {file_path}")
