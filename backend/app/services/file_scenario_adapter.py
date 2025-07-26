@@ -283,13 +283,16 @@ class FileScenarioAdapter:
             config_manager = get_config_manager()
 
             # 获取主机地址 - 优先从分布式配置获取
-            distributed_master_host = config_manager.get_config('distributed.master_host')
-            server_host = config_manager.get_config('server.host')
+            distributed_config = config_manager.get_config('distributed')
+            server_config = config_manager.get_config('server')
+
+            distributed_master_host = distributed_config.get('master_host') if distributed_config else None
+            server_host = server_config.get('host') if server_config else None
 
             master_host = distributed_master_host or server_host or 'localhost'
 
-            distributed_master_port = config_manager.get_config('distributed.master_port')
-            server_port = config_manager.get_config('server.port')
+            distributed_master_port = distributed_config.get('master_port') if distributed_config else None
+            server_port = server_config.get('port') if server_config else None
 
             master_port = distributed_master_port or server_port or 8000
 
