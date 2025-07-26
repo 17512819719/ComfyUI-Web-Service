@@ -218,25 +218,30 @@ class DistributedFileService:
         if base_dir is None:
             from ..utils.path_utils import get_output_dir
             base_dir = get_output_dir()
-        
-        full_path = os.path.join(base_dir, file_path)
-        
+
+        # 清理文件路径，移除可能的API路径前缀
+        clean_file_path = file_path
+        if clean_file_path.startswith('upload/path/'):
+            clean_file_path = clean_file_path[12:]  # 移除 'upload/path/' 前缀
+
+        full_path = os.path.join(base_dir, clean_file_path)
+
         # 安全检查
         from ..utils.path_utils import is_safe_path
         if not is_safe_path(full_path, base_dir):
-            logger.warning(f"[DISTRIBUTED_FILE] 不安全的文件路径: {file_path}")
+            logger.warning(f"[DISTRIBUTED_FILE] 不安全的文件路径: {clean_file_path}")
             return None
-        
+
         if os.path.exists(full_path):
             logger.info(f"[DISTRIBUTED_FILE] 本地文件存在: {full_path}")
             return full_path
-        
-        logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在: {full_path}")
+
+        # logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在: {full_path}")
         return None
     
     async def proxy_from_node(self, file_path: str, node_info: Dict[str, Any] = None) -> Response:
         """从节点代理获取文件（文生图/图生视频场景）"""
-        logger.info(f"[DISTRIBUTED_FILE] 开始代理获取文件: {file_path}")
+        # logger.info(f"[DISTRIBUTED_FILE] 开始代理获取文件: {file_path}")
         
         # 如果没有指定节点，自动查找
         if node_info is None:
@@ -253,10 +258,10 @@ class DistributedFileService:
             if '/' in file_path or '\\' in file_path:
                 subfolder = os.path.dirname(file_path)
                 params["subfolder"] = subfolder
-                logger.debug(f"[DISTRIBUTED_FILE] 从节点获取文件: filename={params['filename']}, subfolder='{subfolder}'")
+                # logger.debug(f"[DISTRIBUTED_FILE] 从节点获取文件: filename={params['filename']}, subfolder='{subfolder}'")
             else:
                 logger.debug(f"[DISTRIBUTED_FILE] 从节点获取文件: filename={params['filename']}, 无子目录")
-            
+
             # 构建完整URL
             import urllib.parse
             query_string = urllib.parse.urlencode(params)
@@ -265,16 +270,16 @@ class DistributedFileService:
             # 使用同步方式获取（兼容现有逻辑）
             response = self.transfer_service.sync_get_file(full_url)
             
-            logger.info(f"[DISTRIBUTED_FILE] 成功从节点 {node_info['node_id']} 代理文件: {file_path}")
+            # logger.info(f"[DISTRIBUTED_FILE] 成功从节点 {node_info['node_id']} 代理文件: {file_path}")
             return response
             
         except Exception as e:
-            logger.error(f"[DISTRIBUTED_FILE] 从节点 {node_info['node_id']} 代理文件失败: {e}")
+            # logger.error(f"[DISTRIBUTED_FILE] 从节点 {node_info['node_id']} 代理文件失败: {e}")
             raise HTTPException(status_code=404, detail=f"无法从节点获取文件: {str(e)}")
     
     async def get_output_file(self, file_path: str) -> Response:
         """获取输出文件（统一入口）"""
-        logger.info(f"[DISTRIBUTED_FILE] 获取输出文件请求: {file_path}")
+        # logger.info(f"[DISTRIBUTED_FILE] 获取输出文件请求: {file_path}")
 
         # 1. 首先检查本地文件
         local_file_path = self.check_local_file(file_path)
@@ -283,13 +288,13 @@ class DistributedFileService:
             return FileResponse(local_file_path)
 
         # 2. 本地文件不存在，尝试从节点代理获取
-        logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在，尝试从节点获取: {file_path}")
+        # logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在，尝试从节点获取: {file_path}")
 
         # 尝试所有在线节点
         online_nodes = self.node_manager.get_online_nodes()
 
         if not online_nodes:
-            logger.warning(f"[DISTRIBUTED_FILE] 没有可用的在线节点")
+            # logger.warning(f"[DISTRIBUTED_FILE] 没有可用的在线节点")
             # 尝试回退到原始输出目录检查
             return await self._fallback_local_check(file_path)
 
@@ -325,7 +330,7 @@ class DistributedFileService:
                 file_info = file_service.get_file_info(file_id)
 
                 if file_info and os.path.exists(file_info['file_path']):
-                    logger.info(f"[DISTRIBUTED_FILE] 通过file_id找到上传文件: {file_info['file_path']}")
+                    # logger.info(f"[DISTRIBUTED_FILE] 通过file_id找到上传文件: {file_info['file_path']}")
                     return FileResponse(file_info['file_path'])
 
             except Exception as e:
@@ -342,8 +347,13 @@ class DistributedFileService:
     async def _fallback_upload_check(self, file_path: str) -> Response:
         """回退检查上传文件"""
         try:
+            # 清理文件路径，移除可能的API路径前缀
+            clean_file_path = file_path
+            if clean_file_path.startswith('upload/path/'):
+                clean_file_path = clean_file_path[12:]  # 移除 'upload/path/' 前缀
+
             # 标准化文件路径
-            normalized_file_path = file_path.replace('\\', '/').replace('/', os.sep)
+            normalized_file_path = clean_file_path.replace('\\', '/').replace('/', os.sep)
 
             # 可能的上传目录
             from ..utils.path_utils import get_project_root
@@ -355,12 +365,12 @@ class DistributedFileService:
                 os.path.join(project_root, 'backend', 'uploads')
             ]
 
-            logger.info(f"[DISTRIBUTED_FILE] 回退检查上传文件: {file_path}")
+            logger.info(f"[DISTRIBUTED_FILE] 回退检查上传文件: {file_path} -> 清理后: {clean_file_path}")
 
             for upload_dir in possible_dirs:
                 if os.path.exists(upload_dir):
-                    # 尝试原始路径
-                    full_path = os.path.join(upload_dir, file_path)
+                    # 尝试清理后的路径
+                    full_path = os.path.join(upload_dir, clean_file_path)
                     if os.path.exists(full_path):
                         logger.info(f"[DISTRIBUTED_FILE] 回退检查找到上传文件: {full_path}")
                         return FileResponse(full_path)
@@ -371,14 +381,24 @@ class DistributedFileService:
                         logger.info(f"[DISTRIBUTED_FILE] 回退检查找到上传文件(标准化): {full_path_normalized}")
                         return FileResponse(full_path_normalized)
 
+                    # 尝试原始路径（兼容性）
+                    full_path_original = os.path.join(upload_dir, file_path)
+                    if os.path.exists(full_path_original):
+                        logger.info(f"[DISTRIBUTED_FILE] 回退检查找到上传文件(原始): {full_path_original}")
+                        return FileResponse(full_path_original)
+
             # 所有尝试都失败
             logger.error(f"[DISTRIBUTED_FILE] 回退检查也无法找到上传文件: {file_path}")
-            raise HTTPException(status_code=404, detail=f"上传文件不存在: {file_path}")
+            logger.error(f"[DISTRIBUTED_FILE] 已检查的目录: {possible_dirs}")
+            logger.error(f"[DISTRIBUTED_FILE] 清理后的路径: {clean_file_path}")
+            raise HTTPException(status_code=404, detail=f"上传文件不存在: {clean_file_path}")
 
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"[DISTRIBUTED_FILE] 上传文件回退检查异常: {e}")
+            import traceback
+            logger.error(f"[DISTRIBUTED_FILE] 错误堆栈: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"上传文件获取失败: {str(e)}")
 
     async def _fallback_local_check(self, file_path: str) -> Response:

@@ -183,13 +183,18 @@ class FileScenarioAdapter:
                 # 将下载信息添加到任务数据中
                 task_data['image_download_info'] = download_info
                 logger.info(f"[SCENARIO_ADAPTER] 已添加图片下载信息: {download_info['download_url']}")
+            else:
+                logger.error(f"[SCENARIO_ADAPTER] 文件下载信息准备失败，无法继续执行任务")
+                raise Exception("文件下载信息准备失败")
 
             return task_data
 
         except Exception as e:
             logger.error(f"[SCENARIO_ADAPTER] 处理图片上传到从机失败: {e}")
-            # 不抛出异常，让任务继续执行
-            return task_data
+            import traceback
+            logger.error(f"[SCENARIO_ADAPTER] 错误堆栈: {traceback.format_exc()}")
+            # 抛出异常，中止任务执行
+            raise
 
     async def _prepare_file_download_info(self, file_path: str, task_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """准备文件下载信息"""
@@ -253,11 +258,10 @@ class FileScenarioAdapter:
                 normalized_path = file_path.replace('\\', '/')
                 download_url = f"http://{master_host}:{master_port}/api/v2/files/upload/path/{normalized_path}"
 
-            # 生成从机本地存储路径（相对于ComfyUI input目录）
-            local_filename = os.path.basename(file_path)
-            # 为避免文件名冲突，可以添加任务ID前缀
-            task_id = task_data.get('task_id', 'unknown')
-            local_path = f"distributed/{task_id}_{local_filename}"
+            # 生成从机本地存储路径（保持时间分层结构）
+            # 保持与主机相同的目录结构，例如：2025/07/26/140621_8b4dd229.png
+            local_path = file_path  # 直接使用原始的相对路径结构
+            local_filename = os.path.basename(file_path)  # 提取文件名
 
             download_info = {
                 'file_id': file_info['file_id'] if file_info and file_info.get('file_id') else None,

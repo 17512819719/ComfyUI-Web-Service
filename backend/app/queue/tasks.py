@@ -242,7 +242,12 @@ class BaseWorkflowTask(Task):
 
         except Exception as e:
             logger.error(f"[TASK_FILE_PREP] 准备分布式任务文件失败: {e}")
-            # 不阻断任务执行，返回原始数据
+            import traceback
+            logger.error(f"[TASK_FILE_PREP] 错误堆栈: {traceback.format_exc()}")
+            # 对于图生视频任务，文件下载信息准备失败应该中止任务
+            if request_data.get('task_type') == 'image_to_video':
+                raise Exception(f"图生视频任务文件准备失败: {str(e)}")
+            # 其他任务类型返回原始数据
             return request_data
 
     def _cleanup_node_assignment(self, task_id: str, node_id: str):
@@ -619,7 +624,10 @@ class BaseWorkflowTask(Task):
                 'status': 'failed',
                 'error': str(e),
                 'message': f'任务执行失败: {str(e)}',
-                'task_id': task_id
+                'task_id': task_id,
+                'error_type': type(e).__name__,  # 添加异常类型信息
+                'exc_type': type(e).__name__,    # Celery需要的异常类型字段
+                'exc_message': str(e)            # Celery需要的异常消息字段
             }
 
     def _execute_image_to_video_logic(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -673,10 +681,25 @@ class BaseWorkflowTask(Task):
                     logger.info(f"[TASK] 完整本地路径: {request_data.get('image_full_path', 'N/A')}")
 
                 except Exception as e:
-                    logger.error(f"[TASK] 文件下载处理失败，继续执行任务: {e}")
+                    logger.error(f"[TASK] 文件下载处理失败，任务中止: {e}")
                     import traceback
                     logger.error(f"[TASK] 错误堆栈: {traceback.format_exc()}")
-                    # 不中断任务执行，只是记录错误
+
+                    # 文件下载失败，中止任务执行
+                    error_msg = f"文件下载失败: {str(e)}"
+                    self.update_task_status(task_id, {
+                        'status': 'failed',
+                        'progress': 0,
+                        'message': error_msg,
+                        'error_message': error_msg
+                    })
+
+                    return {
+                        'status': 'failed',
+                        'error': error_msg,
+                        'message': error_msg,
+                        'task_id': task_id
+                    }
             else:
                 logger.info(f"[TASK] 任务不包含文件下载信息，直接执行: {task_id}")
                 logger.info(f"[TASK] 当前图片路径: {request_data.get('image', 'N/A')}")
@@ -713,7 +736,13 @@ class BaseWorkflowTask(Task):
             comfyui_url, selected_node_id = self._select_comfyui_node_for_task(task_id, 'image_to_video')
 
             # 为分布式任务准备文件下载信息
-            request_data = self._prepare_distributed_task_files(request_data, selected_node_id)
+            logger.info(f"[TASK] 准备分布式任务文件，节点: {selected_node_id}")
+            try:
+                request_data = self._prepare_distributed_task_files(request_data, selected_node_id)
+                logger.info(f"[TASK] 分布式任务文件准备完成")
+            except Exception as e:
+                logger.error(f"[TASK] 分布式任务文件准备失败: {e}")
+                raise
 
             # 执行工作流
             import requests
@@ -828,7 +857,9 @@ class BaseWorkflowTask(Task):
                 'status': 'failed',
                 'progress': 0,
                 'message': f'图生视频任务执行失败: {str(e)}',
-                'error_message': str(e)
+                'error_message': str(e),
+                'completed_at': datetime.now(),
+                'updated_at': datetime.now().isoformat()
             })
 
             # 返回失败结果而不是抛出异常，避免 Celery Worker 崩溃
@@ -836,7 +867,10 @@ class BaseWorkflowTask(Task):
                 'status': 'failed',
                 'error': str(e),
                 'message': f'任务执行失败: {str(e)}',
-                'task_id': task_id
+                'task_id': task_id,
+                'error_type': type(e).__name__,  # 添加异常类型信息
+                'exc_type': type(e).__name__,    # Celery需要的异常类型字段
+                'exc_message': str(e)            # Celery需要的异常消息字段
             }
 
 
@@ -1071,7 +1105,10 @@ def execute_text_to_image_task(self, request_data: Dict[str, Any]) -> Dict[str, 
             'status': 'failed',
             'error': str(e),
             'message': f'任务执行失败: {str(e)}',
-            'task_id': task_id
+            'task_id': task_id,
+            'error_type': type(e).__name__,  # 添加异常类型信息
+            'exc_type': type(e).__name__,    # Celery需要的异常类型字段
+            'exc_message': str(e)            # Celery需要的异常消息字段
         }
 
 

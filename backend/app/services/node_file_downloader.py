@@ -36,20 +36,16 @@ class NodeFileDownloader:
             logger.info(f"[NODE_DOWNLOADER] 目标路径: {local_path}")
             logger.info(f"[NODE_DOWNLOADER] 输入目录: {self.input_dir}")
 
-            # 构建本地完整路径
+            # 构建本地完整路径（保持时间分层结构）
             local_full_path = os.path.join(self.input_dir, local_path)
 
-            # 确保目录存在
+            # 确保目录存在（自动创建时间分层目录）
             local_dir = os.path.dirname(local_full_path)
             os.makedirs(local_dir, exist_ok=True)
 
-            # 确保distributed目录存在
-            distributed_dir = os.path.join(self.input_dir, 'distributed')
-            os.makedirs(distributed_dir, exist_ok=True)
-
             logger.info(f"[NODE_DOWNLOADER] 完整路径: {local_full_path}")
             logger.info(f"[NODE_DOWNLOADER] 目录创建: {local_dir}")
-            logger.info(f"[NODE_DOWNLOADER] 分布式目录: {distributed_dir}")
+            logger.info(f"[NODE_DOWNLOADER] 保持时间分层结构: {local_path}")
             
             # 检查文件是否已存在且大小正确
             if os.path.exists(local_full_path):
@@ -190,14 +186,15 @@ class TaskFileProcessor:
 
                 # 更新任务数据中的图片路径
                 # ComfyUI的LoadImage节点需要相对于input目录的路径
-                relative_to_input = os.path.relpath(local_file_path, self.downloader.input_dir)
-                task_data['image'] = relative_to_input
-                logger.info(f"[TASK_FILE_PROCESSOR] 图片路径已更新为相对路径: {relative_to_input}")
+                # 使用下载信息中的local_path，它已经是正确的相对路径
+                relative_path = download_info['local_path']
+                task_data['image'] = relative_path
+                logger.info(f"[TASK_FILE_PROCESSOR] 图片路径已更新为时间分层路径: {relative_path}")
                 logger.info(f"[TASK_FILE_PROCESSOR] 完整本地路径: {local_file_path}")
 
                 # 保留原始信息用于调试
                 task_data['image_full_path'] = local_file_path
-                task_data['image_original_path'] = download_info['local_path']
+                task_data['image_original_path'] = download_info.get('original_path', download_info['local_path'])
 
             # 可以扩展处理其他类型的文件下载
             # 例如：模型文件、配置文件等

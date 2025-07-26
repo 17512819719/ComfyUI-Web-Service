@@ -58,7 +58,7 @@ def convert_file_path_to_url(file_path: str) -> str:
     import re
 
     # 调试日志
-    logger.debug(f"转换文件路径: {file_path}")
+    # logger.debug(f"转换文件路径: {file_path}")
 
     # 标准化路径分隔符
     file_path = file_path.replace('\\', '/')
@@ -140,11 +140,6 @@ async def submit_text_to_image_task(
         # 准备任务数据
         workflow_name = request_data.get('workflow_name', 'sd_basic')
 
-        # 调试日志：显示原始请求参数
-        logger.info(f"[TASK_CREATE] 任务 {task_id} 原始请求参数:")
-        for key, value in request_data.items():
-            logger.info(f"  - {key}: {value} (type: {type(value).__name__})")
-
         task_data = {
             'task_id': task_id,
             'client_id': user.get('client_id', user['sub']),  # 优先使用client_id，否则使用用户名
@@ -166,19 +161,6 @@ async def submit_text_to_image_task(
             'message': '文生图任务已提交到队列',
             'estimated_time': estimated_time
         }
-
-        # 调试日志：显示准备存储的任务数据
-        logger.info(f"[TASK_CREATE] 任务 {task_id} 准备存储的数据:")
-        for key, value in task_data.items():
-            logger.info(f"  - {key}: {value} (type: {type(value).__name__})")
-
-        # 特别关注关键参数
-        critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale']
-        logger.info(f"[TASK_CREATE] 任务 {task_id} 关键参数检查:")
-        for param in critical_params:
-            value = task_data.get(param)
-            logger.info(f"  - {param}: {value} ({'✓' if value is not None else '✗'})")
-
 
         # 准备参数数据
         parameters = []
@@ -800,11 +782,12 @@ async def download_upload_file_by_path(
     logger.info(f"[API] 上传文件下载请求(路径): {file_path}")
 
     try:
-        # 使用统一的分布式文件服务
-        from ..services.file_scenario_adapter import get_file_scenario_adapter
-        adapter = get_file_scenario_adapter()
+        # 直接使用分布式文件服务处理上传文件
+        from ..services.distributed_file_service import get_distributed_file_service
+        service = get_distributed_file_service()
 
-        response = await adapter.handle_upload_file_download(file_path)
+        # 直接调用上传文件获取方法
+        response = await service.get_upload_file(file_path)
 
         logger.info(f"[API] 上传文件下载成功(路径): {file_path}")
         return response
@@ -813,6 +796,8 @@ async def download_upload_file_by_path(
         raise
     except Exception as e:
         logger.error(f"[API] 上传文件下载失败(路径): {file_path}, 错误: {e}")
+        import traceback
+        logger.error(f"[API] 错误堆栈: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
 
 
@@ -1770,27 +1755,6 @@ async def reload_task(
     if not task_info:
         logger.error(f"[TASK_RELOAD] 任务不存在: {task_id}")
         raise HTTPException(status_code=404, detail="任务不存在")
-
-    # 调试日志：显示获取到的任务信息
-    logger.info(f"[TASK_RELOAD] 任务 {task_id} 获取到的信息:")
-    for key, value in task_info.items():
-        logger.info(f"  - {key}: {value}")
-
-    # 特别关注关键参数
-    critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale', 'sampler', 'scheduler']
-    logger.info(f"[TASK_RELOAD] 任务 {task_id} 关键参数检查:")
-    missing_params = []
-    for param in critical_params:
-        value = task_info.get(param)
-        status = '✓' if value is not None else '✗'
-        logger.info(f"  - {param}: {value} ({status})")
-        if value is None:
-            missing_params.append(param)
-
-    if missing_params:
-        logger.warning(f"[TASK_RELOAD] 任务 {task_id} 缺失关键参数: {missing_params}")
-    else:
-        logger.info(f"[TASK_RELOAD] 任务 {task_id} 所有关键参数完整")
 
     # 重新提交任务到队列
     try:
