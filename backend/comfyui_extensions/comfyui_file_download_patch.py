@@ -170,15 +170,61 @@ def process_prompt_with_file_downloads(original_data: Dict[str, Any]) -> Dict[st
 def patch_comfyui_server():
     """为ComfyUI服务器添加文件下载支持"""
     try:
-        # 延迟导入，避免在ComfyUI启动时影响模块路径
         logger.info("[COMFYUI_DOWNLOADER] 尝试应用ComfyUI服务器补丁")
 
-        # 暂时跳过服务器补丁，使用更简单的方法
-        logger.info("[COMFYUI_DOWNLOADER] 使用简化补丁模式")
-        return True
+        # 尝试劫持server模块的prompt处理
+        import server
+
+        if hasattr(server, 'PromptServer'):
+            prompt_server = server.PromptServer.instance
+
+            # 保存原始的prompt处理方法
+            if hasattr(prompt_server, 'prompt'):
+                original_prompt = prompt_server.prompt
+
+                async def enhanced_prompt(request):
+                    """增强的prompt处理函数"""
+                    try:
+                        # 获取请求数据
+                        data = await request.json()
+                        logger.info(f"[COMFYUI_DOWNLOADER] 接收到prompt请求")
+
+                        # 检查是否包含文件下载指令
+                        if 'file_downloads' in data:
+                            logger.info(f"[COMFYUI_DOWNLOADER] 检测到文件下载指令: {len(data['file_downloads'])} 个文件")
+
+                            # 处理文件下载
+                            processed_data = process_prompt_with_file_downloads(data)
+
+                            # 创建新的请求对象
+                            from aiohttp.web_request import Request
+                            import json
+                            from aiohttp.payload import JsonPayload
+
+                            # 修改请求体
+                            request._payload = JsonPayload(processed_data)
+                            request._body = json.dumps(processed_data).encode()
+
+                        # 调用原始处理函数
+                        return await original_prompt(request)
+
+                    except Exception as e:
+                        logger.error(f"[COMFYUI_DOWNLOADER] 处理prompt请求失败: {e}")
+                        # 如果处理失败，回退到原始处理函数
+                        return await original_prompt(request)
+
+                # 替换处理函数
+                prompt_server.prompt = enhanced_prompt
+                logger.info("[COMFYUI_DOWNLOADER] 成功劫持ComfyUI prompt处理函数")
+                return True
+
+        logger.warning("[COMFYUI_DOWNLOADER] 无法找到PromptServer实例")
+        return False
 
     except Exception as e:
         logger.error(f"[COMFYUI_DOWNLOADER] 应用补丁失败: {e}")
+        import traceback
+        logger.error(f"[COMFYUI_DOWNLOADER] 错误堆栈: {traceback.format_exc()}")
 
     return False
 

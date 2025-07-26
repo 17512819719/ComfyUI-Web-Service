@@ -746,12 +746,22 @@ class BaseWorkflowTask(Task):
                 if response.status_code != 200:
                     error_detail = f"状态码: {response.status_code}, 响应: {response.text[:500]}"
                     logger.error(f"ComfyUI API调用失败: {error_detail}")
-                    raise Exception(f"ComfyUI API调用失败: {error_detail}")
+
+                    # 创建包含正确异常类型信息的异常
+                    error = Exception(f"ComfyUI API调用失败: {error_detail}")
+                    error.exc_type = "Exception"
+                    error.exc_message = f"ComfyUI API调用失败: {error_detail}"
+                    raise error
 
                 response_data = response.json()
                 if "prompt_id" not in response_data:
                     logger.error(f"ComfyUI响应格式异常: {response_data}")
-                    raise Exception("ComfyUI响应中缺少prompt_id")
+
+                    # 创建包含正确异常类型信息的异常
+                    error = Exception("ComfyUI响应中缺少prompt_id")
+                    error.exc_type = "Exception"
+                    error.exc_message = "ComfyUI响应中缺少prompt_id"
+                    raise error
 
                 prompt_id = response_data["prompt_id"]
                 logger.info(f"工作流已成功提交到ComfyUI，prompt_id: {prompt_id}")
@@ -759,11 +769,22 @@ class BaseWorkflowTask(Task):
             except requests.exceptions.ConnectionError as e:
                 error_msg = f"无法连接到ComfyUI服务器 (URL: {comfyui_url})"
                 logger.error(error_msg)
-                raise Exception(error_msg)
+
+                # 创建包含正确异常类型信息的异常
+                error = Exception(error_msg)
+                error.exc_type = "ConnectionError"
+                error.exc_message = error_msg
+                raise error
+
             except requests.exceptions.Timeout as e:
                 error_msg = f"ComfyUI请求超时 (URL: {comfyui_url})"
                 logger.error(error_msg)
-                raise Exception(error_msg)
+
+                # 创建包含正确异常类型信息的异常
+                error = Exception(error_msg)
+                error.exc_type = "Timeout"
+                error.exc_message = error_msg
+                raise error
             except Exception as e:
                 logger.error(f"提交工作流失败: {e}")
                 raise
