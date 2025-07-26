@@ -235,6 +235,7 @@ def get_node_file_downloader(comfyui_input_dir: str = None, master_token: str = 
 
         # 可能的ComfyUI安装路径（从机本地）
         possible_paths = [
+            'E:\\ComfyUI\\ComfyUI',    # 从机实际路径（从日志中发现）
             'E:/ComfyUI/ComfyUI',      # Windows常见路径
             'D:/ComfyUI/ComfyUI',      # Windows常见路径
             'C:/ComfyUI/ComfyUI',      # Windows常见路径
@@ -250,18 +251,20 @@ def get_node_file_downloader(comfyui_input_dir: str = None, master_token: str = 
             logger.info(f"[NODE_DOWNLOADER] 检查路径: {path}")
             if os.path.exists(path):
                 input_path = os.path.join(path, 'input')
+                logger.info(f"[NODE_DOWNLOADER] ✅ 找到ComfyUI安装: {path}")
+                logger.info(f"[NODE_DOWNLOADER] 检查input目录: {input_path}")
+
                 # 确保input目录也存在
                 if os.path.exists(input_path):
                     comfyui_input_dir = input_path
-                    logger.info(f"[NODE_DOWNLOADER] ✅ 找到ComfyUI安装: {path}")
-                    logger.info(f"[NODE_DOWNLOADER] ✅ 使用输入目录: {comfyui_input_dir}")
+                    logger.info(f"[NODE_DOWNLOADER] ✅ input目录存在，使用: {comfyui_input_dir}")
                     break
                 else:
                     # 如果input目录不存在，尝试创建
                     try:
                         os.makedirs(input_path, exist_ok=True)
                         comfyui_input_dir = input_path
-                        logger.info(f"[NODE_DOWNLOADER] ✅ 创建输入目录: {comfyui_input_dir}")
+                        logger.info(f"[NODE_DOWNLOADER] ✅ 创建input目录成功: {comfyui_input_dir}")
                         break
                     except Exception as e:
                         logger.warning(f"[NODE_DOWNLOADER] 无法创建输入目录 {input_path}: {e}")

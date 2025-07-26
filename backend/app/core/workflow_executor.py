@@ -573,11 +573,22 @@ class ComfyUIWorkflowExecutor(BaseWorkflowExecutor):
             inputs['vae_name'] = parameters['vae']
         
         # 图像加载器（图生视频）
-        if 'LoadImage' in class_type and 'image_path' in parameters:
-            # 提取文件名
-            image_path = parameters['image_path']
-            if os.path.exists(image_path):
-                inputs['image'] = os.path.basename(image_path)
+        if 'LoadImage' in class_type:
+            # 检查多种可能的图像参数名
+            image_path = None
+            for param_name in ['image', 'image_path', 'input_image']:
+                if param_name in parameters:
+                    image_path = parameters[param_name]
+                    logger.info(f"[WORKFLOW_EXECUTOR] 找到图像参数: {param_name} = {image_path}")
+                    break
+
+            if image_path:
+                # 对于分布式模式，只使用文件名
+                filename = os.path.basename(image_path)
+                inputs['image'] = filename
+                logger.info(f"[WORKFLOW_EXECUTOR] LoadImage节点使用文件名: {filename}")
+            else:
+                logger.warning(f"[WORKFLOW_EXECUTOR] LoadImage节点未找到图像参数")
         
         # 视频参数
         if 'video' in class_type.lower():
