@@ -709,33 +709,6 @@ async def get_uploaded_file(
     return FileResponse(full_path)
 
 
-@router.get("/api/v2/files/upload/path/{file_path:path}")
-async def download_upload_file_by_path(
-    file_path: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
-    """通过相对路径下载上传文件（供从机使用）"""
-    verify_token(credentials.credentials)
-
-    logger.info(f"[API] 上传文件下载请求(路径): {file_path}")
-
-    try:
-        # 使用统一的分布式文件服务
-        from ..services.file_scenario_adapter import get_file_scenario_adapter
-        adapter = get_file_scenario_adapter()
-
-        response = await adapter.handle_upload_file_download(file_path)
-
-        logger.info(f"[API] 上传文件下载成功(路径): {file_path}")
-        return response
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[API] 上传文件下载失败(路径): {file_path}, 错误: {e}")
-        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
-
-
 @router.get("/api/v2/files/{file_path:path}")
 async def get_output_file(
     file_path: str,
@@ -815,6 +788,32 @@ async def download_upload_file_by_id(
         logger.error(f"[API] 上传文件下载失败(ID): {file_id}, 错误: {e}")
         raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
 
+
+@router.get("/api/v2/files/upload/path/{file_path:path}")
+async def download_upload_file_by_path(
+    file_path: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """通过相对路径下载上传文件（供从机使用）"""
+    verify_token(credentials.credentials)
+
+    logger.info(f"[API] 上传文件下载请求(路径): {file_path}")
+
+    try:
+        # 使用统一的分布式文件服务
+        from ..services.file_scenario_adapter import get_file_scenario_adapter
+        adapter = get_file_scenario_adapter()
+
+        response = await adapter.handle_upload_file_download(file_path)
+
+        logger.info(f"[API] 上传文件下载成功(路径): {file_path}")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[API] 上传文件下载失败(路径): {file_path}, 错误: {e}")
+        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
 
 
 @router.get("/api/v2/files/diagnose")
