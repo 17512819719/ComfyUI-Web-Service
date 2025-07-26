@@ -246,21 +246,18 @@ class FileScenarioAdapter:
             master_port = config_manager.get_config('server.port') or 8000
 
             # 构建下载URL
-            if file_info and file_info.get('file_id'):
-                # 有有效的file_id，使用ID下载
+            if file_info:
                 download_url = f"http://{master_host}:{master_port}/api/v2/files/upload/{file_info['file_id']}"
-                logger.info(f"[SCENARIO_ADAPTER] 使用file_id下载: {file_info['file_id']}")
             else:
-                # 没有file_id或file_id为None，使用路径下载
+                # 使用路径下载
                 download_url = f"http://{master_host}:{master_port}/api/v2/files/upload/path/{file_path}"
-                logger.info(f"[SCENARIO_ADAPTER] 使用路径下载: {file_path}")
 
             download_info = {
-                'file_id': file_info.get('file_id') if file_info else None,
+                'file_id': file_info['file_id'] if file_info else None,
                 'download_url': download_url,
                 'local_path': file_path,
                 'filename': os.path.basename(file_path),
-                'file_size': file_info.get('file_size', 0) if file_info else 0
+                'file_size': file_info['file_size'] if file_info else 0
             }
 
             logger.info(f"[SCENARIO_ADAPTER] 准备文件下载信息: {download_info}")
