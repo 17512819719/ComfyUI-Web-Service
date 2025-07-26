@@ -1772,25 +1772,25 @@ async def reload_task(
         raise HTTPException(status_code=404, detail="任务不存在")
 
     # 调试日志：显示获取到的任务信息
-    # logger.info(f"[TASK_RELOAD] 任务 {task_id} 获取到的信息:")
-    # for key, value in task_info.items():
-    #     logger.info(f"  - {key}: {value}")
+    logger.info(f"[TASK_RELOAD] 任务 {task_id} 获取到的信息:")
+    for key, value in task_info.items():
+        logger.info(f"  - {key}: {value}")
 
     # 特别关注关键参数
-    # critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale', 'sampler', 'scheduler']
-    # logger.info(f"[TASK_RELOAD] 任务 {task_id} 关键参数检查:")
-    # missing_params = []
-    # for param in critical_params:
-    #     value = task_info.get(param)
-    #     status = '✓' if value is not None else '✗'
-    #     logger.info(f"  - {param}: {value} ({status})")
-    #     if value is None:
-    #         missing_params.append(param)
-    #
-    # if missing_params:
-    #     logger.warning(f"[TASK_RELOAD] 任务 {task_id} 缺失关键参数: {missing_params}")
-    # else:
-    #     logger.info(f"[TASK_RELOAD] 任务 {task_id} 所有关键参数完整")
+    critical_params = ['model_name', 'width', 'height', 'seed', 'steps', 'cfg_scale', 'sampler', 'scheduler']
+    logger.info(f"[TASK_RELOAD] 任务 {task_id} 关键参数检查:")
+    missing_params = []
+    for param in critical_params:
+        value = task_info.get(param)
+        status = '✓' if value is not None else '✗'
+        logger.info(f"  - {param}: {value} ({status})")
+        if value is None:
+            missing_params.append(param)
+
+    if missing_params:
+        logger.warning(f"[TASK_RELOAD] 任务 {task_id} 缺失关键参数: {missing_params}")
+    else:
+        logger.info(f"[TASK_RELOAD] 任务 {task_id} 所有关键参数完整")
 
     # 重新提交任务到队列
     try:

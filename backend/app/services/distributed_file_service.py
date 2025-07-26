@@ -90,7 +90,7 @@ class FileTransferService:
         """同步获取文件（用于兼容现有代码）"""
         headers = headers or {}
         
-        # logger.info(f"[FILE_TRANSFER] 同步获取文件: {url}")
+        logger.info(f"[FILE_TRANSFER] 同步获取文件: {url}")
         
         try:
             response = requests.get(url, headers=headers, timeout=self.timeout)
@@ -99,7 +99,7 @@ class FileTransferService:
             content = response.content
             content_type = response.headers.get('content-type', 'application/octet-stream')
             
-            # logger.info(f"[FILE_TRANSFER] 同步获取成功: {len(content)} bytes, 类型: {content_type}")
+            logger.info(f"[FILE_TRANSFER] 同步获取成功: {len(content)} bytes, 类型: {content_type}")
             
             return Response(
                 content=content,
@@ -231,12 +231,12 @@ class DistributedFileService:
             logger.info(f"[DISTRIBUTED_FILE] 本地文件存在: {full_path}")
             return full_path
         
-        # logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在: {full_path}")
+        logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在: {full_path}")
         return None
     
     async def proxy_from_node(self, file_path: str, node_info: Dict[str, Any] = None) -> Response:
         """从节点代理获取文件（文生图/图生视频场景）"""
-        # logger.info(f"[DISTRIBUTED_FILE] 开始代理获取文件: {file_path}")
+        logger.info(f"[DISTRIBUTED_FILE] 开始代理获取文件: {file_path}")
         
         # 如果没有指定节点，自动查找
         if node_info is None:
@@ -283,7 +283,7 @@ class DistributedFileService:
             return FileResponse(local_file_path)
 
         # 2. 本地文件不存在，尝试从节点代理获取
-        # logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在，尝试从节点获取: {file_path}")
+        logger.info(f"[DISTRIBUTED_FILE] 本地文件不存在，尝试从节点获取: {file_path}")
 
         # 尝试所有在线节点
         online_nodes = self.node_manager.get_online_nodes()
