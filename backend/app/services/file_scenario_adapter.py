@@ -283,16 +283,20 @@ class FileScenarioAdapter:
             config_manager = get_config_manager()
 
             # 获取主机地址 - 优先从分布式配置获取
-            master_host = (
-                config_manager.get_config('distributed.master_host') or
-                config_manager.get_config('server.host') or
-                'localhost'
-            )
-            master_port = (
-                config_manager.get_config('distributed.master_port') or
-                config_manager.get_config('server.port') or
-                8000
-            )
+            distributed_master_host = config_manager.get_config('distributed.master_host')
+            server_host = config_manager.get_config('server.host')
+
+            master_host = distributed_master_host or server_host or 'localhost'
+
+            distributed_master_port = config_manager.get_config('distributed.master_port')
+            server_port = config_manager.get_config('server.port')
+
+            master_port = distributed_master_port or server_port or 8000
+
+            # 调试日志
+            logger.info(f"[SCENARIO_ADAPTER] 配置获取: distributed.master_host={distributed_master_host}, server.host={server_host}")
+            logger.info(f"[SCENARIO_ADAPTER] 配置获取: distributed.master_port={distributed_master_port}, server.port={server_port}")
+            logger.info(f"[SCENARIO_ADAPTER] 最终使用: master_host={master_host}, master_port={master_port}")
 
             # 构建下载URL
             if file_info and file_info.get('file_id'):

@@ -2,19 +2,6 @@
 """
 ComfyUI文件下载补丁
 通过monkey patch的方式为ComfyUI添加远程文件下载支持
-
-安装方法：
-1. 将此文件复制到ComfyUI目录下
-2. 在ComfyUI的main.py末尾添加: 
-try:
-    import comfyui_file_download_patch
-    # ComfyUI启动完成后应用补丁
-    comfyui_file_download_patch.patch_comfyui_server()
-except Exception as e:
-    print(f"文件下载补丁加载失败: {e}")
-3. 重启ComfyUI
-
-或者直接运行此脚本来测试功能
 """
 
 import os
@@ -170,56 +157,18 @@ def process_prompt_with_file_downloads(original_data: Dict[str, Any]) -> Dict[st
 def patch_comfyui_server():
     """为ComfyUI服务器添加文件下载支持"""
     try:
-        logger.info("[COMFYUI_DOWNLOADER] 尝试应用ComfyUI服务器补丁")
+        logger.info("[COMFYUI_DOWNLOADER] 应用简化补丁")
 
-        # 尝试劫持server模块的prompt处理
-        import server
+        # 创建全局处理函数，供ComfyUI调用
+        global process_prompt_with_file_downloads
 
-        if hasattr(server, 'PromptServer'):
-            prompt_server = server.PromptServer.instance
+        # 将处理函数注册到全局命名空间
+        import builtins
+        builtins.comfyui_process_downloads = process_prompt_with_file_downloads
 
-            # 保存原始的prompt处理方法
-            if hasattr(prompt_server, 'prompt'):
-                original_prompt = prompt_server.prompt
-
-                async def enhanced_prompt(request):
-                    """增强的prompt处理函数"""
-                    try:
-                        # 获取请求数据
-                        data = await request.json()
-                        logger.info(f"[COMFYUI_DOWNLOADER] 接收到prompt请求")
-
-                        # 检查是否包含文件下载指令
-                        if 'file_downloads' in data:
-                            logger.info(f"[COMFYUI_DOWNLOADER] 检测到文件下载指令: {len(data['file_downloads'])} 个文件")
-
-                            # 处理文件下载
-                            processed_data = process_prompt_with_file_downloads(data)
-
-                            # 创建新的请求对象
-                            from aiohttp.web_request import Request
-                            import json
-                            from aiohttp.payload import JsonPayload
-
-                            # 修改请求体
-                            request._payload = JsonPayload(processed_data)
-                            request._body = json.dumps(processed_data).encode()
-
-                        # 调用原始处理函数
-                        return await original_prompt(request)
-
-                    except Exception as e:
-                        logger.error(f"[COMFYUI_DOWNLOADER] 处理prompt请求失败: {e}")
-                        # 如果处理失败，回退到原始处理函数
-                        return await original_prompt(request)
-
-                # 替换处理函数
-                prompt_server.prompt = enhanced_prompt
-                logger.info("[COMFYUI_DOWNLOADER] 成功劫持ComfyUI prompt处理函数")
-                return True
-
-        logger.warning("[COMFYUI_DOWNLOADER] 无法找到PromptServer实例")
-        return False
+        logger.info("[COMFYUI_DOWNLOADER] 补丁应用成功")
+        logger.info("[COMFYUI_DOWNLOADER] 可通过 comfyui_process_downloads(data) 调用文件下载处理")
+        return True
 
     except Exception as e:
         logger.error(f"[COMFYUI_DOWNLOADER] 应用补丁失败: {e}")
@@ -227,6 +176,9 @@ def patch_comfyui_server():
         logger.error(f"[COMFYUI_DOWNLOADER] 错误堆栈: {traceback.format_exc()}")
 
     return False
+
+
+
 
 
 # 独立的API服务器（如果无法直接修改ComfyUI）
