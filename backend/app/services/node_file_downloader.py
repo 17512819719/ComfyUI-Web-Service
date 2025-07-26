@@ -42,8 +42,14 @@ class NodeFileDownloader:
             # 确保目录存在
             local_dir = os.path.dirname(local_full_path)
             os.makedirs(local_dir, exist_ok=True)
+
+            # 确保distributed目录存在
+            distributed_dir = os.path.join(self.input_dir, 'distributed')
+            os.makedirs(distributed_dir, exist_ok=True)
+
             logger.info(f"[NODE_DOWNLOADER] 完整路径: {local_full_path}")
             logger.info(f"[NODE_DOWNLOADER] 目录创建: {local_dir}")
+            logger.info(f"[NODE_DOWNLOADER] 分布式目录: {distributed_dir}")
             
             # 检查文件是否已存在且大小正确
             if os.path.exists(local_full_path):
@@ -182,14 +188,16 @@ class TaskFileProcessor:
                 local_file_path = self.downloader.download_file(download_info)
                 downloaded_files.append(local_file_path)
 
-                # 更新任务数据中的图片路径为下载后的完整路径
-                # 这样ComfyUI就能找到正确的文件
-                task_data['image'] = local_file_path
-                logger.info(f"[TASK_FILE_PROCESSOR] 图片路径已更新为完整路径: {local_file_path}")
+                # 更新任务数据中的图片路径
+                # ComfyUI的LoadImage节点需要相对于input目录的路径
+                relative_to_input = os.path.relpath(local_file_path, self.downloader.input_dir)
+                task_data['image'] = relative_to_input
+                logger.info(f"[TASK_FILE_PROCESSOR] 图片路径已更新为相对路径: {relative_to_input}")
+                logger.info(f"[TASK_FILE_PROCESSOR] 完整本地路径: {local_file_path}")
 
-                # 同时保留原始相对路径信息
-                task_data['image_relative_path'] = download_info['local_path']
-                logger.info(f"[TASK_FILE_PROCESSOR] 保留相对路径: {download_info['local_path']}")
+                # 保留原始信息用于调试
+                task_data['image_full_path'] = local_file_path
+                task_data['image_original_path'] = download_info['local_path']
 
             # 可以扩展处理其他类型的文件下载
             # 例如：模型文件、配置文件等

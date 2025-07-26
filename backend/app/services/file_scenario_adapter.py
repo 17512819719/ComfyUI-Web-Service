@@ -207,30 +207,65 @@ class FileScenarioAdapter:
 
             # 如果没有找到，尝试通过路径查找
             if not file_info:
-                # 这里可以实现通过路径查找文件信息的逻辑
-                pass
+                # 尝试通过文件路径查找文件信息
+                try:
+                    # 检查文件是否存在于uploads目录
+                    from ..utils.path_utils import get_upload_dir
+                    upload_dir = get_upload_dir()
+                    full_file_path = os.path.join(upload_dir, file_path)
+
+                    if os.path.exists(full_file_path):
+                        # 构建基本文件信息
+                        file_info = {
+                            'file_id': None,
+                            'file_path': full_file_path,
+                            'file_size': os.path.getsize(full_file_path),
+                            'filename': os.path.basename(file_path)
+                        }
+                        logger.info(f"[SCENARIO_ADAPTER] 通过路径找到文件: {full_file_path}")
+                    else:
+                        logger.warning(f"[SCENARIO_ADAPTER] 文件不存在: {full_file_path}")
+
+                except Exception as e:
+                    logger.warning(f"[SCENARIO_ADAPTER] 通过路径查找文件失败: {e}")
 
             # 构建下载URL
             from ..core.config_manager import get_config_manager
             config_manager = get_config_manager()
 
-            # 获取主机地址
-            master_host = config_manager.get_config('server.host') or 'localhost'
-            master_port = config_manager.get_config('server.port') or 8000
+            # 获取主机地址 - 优先从分布式配置获取
+            master_host = (
+                config_manager.get_config('distributed.master_host') or
+                config_manager.get_config('server.host') or
+                'localhost'
+            )
+            master_port = (
+                config_manager.get_config('distributed.master_port') or
+                config_manager.get_config('server.port') or
+                8000
+            )
 
             # 构建下载URL
-            if file_info:
+            if file_info and file_info.get('file_id'):
                 download_url = f"http://{master_host}:{master_port}/api/v2/files/upload/{file_info['file_id']}"
             else:
-                # 使用路径下载
-                download_url = f"http://{master_host}:{master_port}/api/v2/files/upload/path/{file_path}"
+                # 使用路径下载，确保路径格式正确
+                normalized_path = file_path.replace('\\', '/')
+                download_url = f"http://{master_host}:{master_port}/api/v2/files/upload/path/{normalized_path}"
+
+            # 生成从机本地存储路径（相对于ComfyUI input目录）
+            local_filename = os.path.basename(file_path)
+            # 为避免文件名冲突，可以添加任务ID前缀
+            task_id = task_data.get('task_id', 'unknown')
+            local_path = f"distributed/{task_id}_{local_filename}"
 
             download_info = {
-                'file_id': file_info['file_id'] if file_info else None,
+                'file_id': file_info['file_id'] if file_info and file_info.get('file_id') else None,
                 'download_url': download_url,
-                'local_path': file_path,
-                'filename': os.path.basename(file_path),
-                'file_size': file_info['file_size'] if file_info else 0
+                'local_path': local_path,  # 相对于ComfyUI input目录的路径
+                'filename': local_filename,
+                'file_size': file_info['file_size'] if file_info else 0,
+                'original_path': file_path  # 保留原始路径用于调试
             }
 
             logger.info(f"[SCENARIO_ADAPTER] 准备文件下载信息: {download_info}")
@@ -238,6 +273,8 @@ class FileScenarioAdapter:
 
         except Exception as e:
             logger.error(f"[SCENARIO_ADAPTER] 准备文件下载信息失败: {e}")
+            import traceback
+            logger.error(f"[SCENARIO_ADAPTER] 错误堆栈: {traceback.format_exc()}")
             return None
     
     def get_file_type_from_path(self, file_path: str) -> str:

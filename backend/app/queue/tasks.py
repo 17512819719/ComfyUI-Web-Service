@@ -197,6 +197,54 @@ class BaseWorkflowTask(Task):
             # 最终降级到默认配置
             return "http://127.0.0.1:8188", "default"
 
+    def _prepare_distributed_task_files(self, request_data: Dict[str, Any], selected_node_id: str) -> Dict[str, Any]:
+        """为分布式任务准备文件下载信息"""
+        if selected_node_id == "default":
+            # 单机模式，无需处理文件下载
+            return request_data
+
+        try:
+            # 检查是否为图生视频任务且包含图片
+            if request_data.get('task_type') == 'image_to_video' and request_data.get('image'):
+                logger.info(f"[TASK_FILE_PREP] 为图生视频任务准备文件下载: {request_data.get('task_id')}")
+
+                # 使用文件场景适配器准备下载信息
+                from ..services.file_scenario_adapter import get_file_scenario_adapter
+                adapter = get_file_scenario_adapter()
+
+                # 异步调用适配器
+                import asyncio
+                import concurrent.futures
+
+                def run_async_in_thread(coro):
+                    """在新线程中运行异步函数"""
+                    def run_in_thread():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            return new_loop.run_until_complete(coro)
+                        finally:
+                            new_loop.close()
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_in_thread)
+                        return future.result()
+
+                # 准备文件下载信息
+                updated_request_data = run_async_in_thread(
+                    adapter.handle_image_upload_to_node(request_data, selected_node_id)
+                )
+
+                logger.info(f"[TASK_FILE_PREP] 文件下载信息准备完成: {request_data.get('task_id')}")
+                return updated_request_data
+
+            return request_data
+
+        except Exception as e:
+            logger.error(f"[TASK_FILE_PREP] 准备分布式任务文件失败: {e}")
+            # 不阻断任务执行，返回原始数据
+            return request_data
+
     def _cleanup_node_assignment(self, task_id: str, node_id: str):
         """清理节点任务分配"""
         if node_id == "default":
@@ -602,6 +650,7 @@ class BaseWorkflowTask(Task):
                     logger.info(f"[TASK] 检测到图片下载信息，开始处理文件下载: {task_id}")
                     logger.info(f"[TASK] 下载URL: {download_info.get('download_url')}")
                     logger.info(f"[TASK] 本地路径: {download_info.get('local_path')}")
+                    logger.info(f"[TASK] 原始路径: {download_info.get('original_path')}")
 
                     # 更新进度
                     self.update_task_status(task_id, {
@@ -621,12 +670,16 @@ class BaseWorkflowTask(Task):
 
                     logger.info(f"[TASK] 文件下载处理完成: {task_id}")
                     logger.info(f"[TASK] 图片路径更新: {original_image_path} -> {new_image_path}")
+                    logger.info(f"[TASK] 完整本地路径: {request_data.get('image_full_path', 'N/A')}")
 
                 except Exception as e:
                     logger.error(f"[TASK] 文件下载处理失败，继续执行任务: {e}")
                     import traceback
                     logger.error(f"[TASK] 错误堆栈: {traceback.format_exc()}")
                     # 不中断任务执行，只是记录错误
+            else:
+                logger.info(f"[TASK] 任务不包含文件下载信息，直接执行: {task_id}")
+                logger.info(f"[TASK] 当前图片路径: {request_data.get('image', 'N/A')}")
 
             # 获取工作流参数处理器
             from ..core.workflow_parameter_processor import get_workflow_parameter_processor
@@ -658,6 +711,9 @@ class BaseWorkflowTask(Task):
 
             # 选择ComfyUI节点 - 支持分布式模式
             comfyui_url, selected_node_id = self._select_comfyui_node_for_task(task_id, 'image_to_video')
+
+            # 为分布式任务准备文件下载信息
+            request_data = self._prepare_distributed_task_files(request_data, selected_node_id)
 
             # 执行工作流
             import requests
