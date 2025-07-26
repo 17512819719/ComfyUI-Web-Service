@@ -651,55 +651,29 @@ class BaseWorkflowTask(Task):
                 'message': '正在处理图生视频任务...'
             })
 
-            # 处理文件下载（如果需要）
+            # 准备远程文件下载指令（如果需要）
+            file_downloads = []
             if 'image_download_info' in request_data:
-                try:
-                    download_info = request_data['image_download_info']
-                    logger.info(f"[TASK] 检测到图片下载信息，开始处理文件下载: {task_id}")
-                    logger.info(f"[TASK] 下载URL: {download_info.get('download_url')}")
-                    logger.info(f"[TASK] 本地路径: {download_info.get('local_path')}")
-                    logger.info(f"[TASK] 原始路径: {download_info.get('original_path')}")
+                download_info = request_data['image_download_info']
+                logger.info(f"[TASK] 检测到图片下载信息，准备远程下载指令: {task_id}")
+                logger.info(f"[TASK] 下载URL: {download_info.get('download_url')}")
+                logger.info(f"[TASK] 本地路径: {download_info.get('local_path')}")
 
-                    # 更新进度
-                    self.update_task_status(task_id, {
-                        'status': 'processing',
-                        'progress': 5,
-                        'message': '正在下载所需文件...'
-                    })
+                # 构建文件下载指令
+                file_download = {
+                    'download_url': download_info.get('download_url'),
+                    'local_path': download_info.get('local_path'),
+                    'filename': download_info.get('filename'),
+                    'file_size': download_info.get('file_size', 0),
+                    'target_field': '54.inputs.image'  # LoadImage节点的image输入
+                }
+                file_downloads.append(file_download)
 
-                    # 处理文件下载
-                    from ..services.node_file_downloader import get_task_file_processor
-                    file_processor = get_task_file_processor()
+                # 更新工作流中的图片路径为下载后的本地路径
+                request_data['image'] = download_info.get('local_path')
 
-                    # 处理任务文件下载
-                    original_image_path = request_data.get('image', '')
-                    request_data = file_processor.process_task_files(request_data)
-                    new_image_path = request_data.get('image', '')
-
-                    logger.info(f"[TASK] 文件下载处理完成: {task_id}")
-                    logger.info(f"[TASK] 图片路径更新: {original_image_path} -> {new_image_path}")
-                    logger.info(f"[TASK] 完整本地路径: {request_data.get('image_full_path', 'N/A')}")
-
-                except Exception as e:
-                    logger.error(f"[TASK] 文件下载处理失败，任务中止: {e}")
-                    import traceback
-                    logger.error(f"[TASK] 错误堆栈: {traceback.format_exc()}")
-
-                    # 文件下载失败，中止任务执行
-                    error_msg = f"文件下载失败: {str(e)}"
-                    self.update_task_status(task_id, {
-                        'status': 'failed',
-                        'progress': 0,
-                        'message': error_msg,
-                        'error_message': error_msg
-                    })
-
-                    return {
-                        'status': 'failed',
-                        'error': error_msg,
-                        'message': error_msg,
-                        'task_id': task_id
-                    }
+                logger.info(f"[TASK] 远程下载指令准备完成: {task_id}")
+                logger.info(f"[TASK] 图片路径设置为: {request_data.get('image')}")
             else:
                 logger.info(f"[TASK] 任务不包含文件下载信息，直接执行: {task_id}")
                 logger.info(f"[TASK] 当前图片路径: {request_data.get('image', 'N/A')}")
@@ -753,7 +727,21 @@ class BaseWorkflowTask(Task):
             # 提交工作流
             try:
                 logger.info(f"向ComfyUI提交工作流: {comfyui_url}/prompt")
-                response = requests.post(f"{comfyui_url}/prompt", json={"prompt": complete_workflow}, timeout=30)
+
+                # 构建提交数据，包含文件下载指令
+                prompt_data = {
+                    "prompt": complete_workflow,
+                    "client_id": task_id
+                }
+
+                # 如果有文件下载指令，添加到请求中
+                if file_downloads:
+                    prompt_data["file_downloads"] = file_downloads
+                    logger.info(f"[TASK] 添加文件下载指令到工作流: {len(file_downloads)} 个文件")
+                    for i, download in enumerate(file_downloads):
+                        logger.info(f"[TASK] 下载指令 {i+1}: {download['download_url']} -> {download['local_path']}")
+
+                response = requests.post(f"{comfyui_url}/prompt", json=prompt_data, timeout=30)
 
                 if response.status_code != 200:
                     error_detail = f"状态码: {response.status_code}, 响应: {response.text[:500]}"
