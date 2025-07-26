@@ -56,8 +56,7 @@ class ParameterMapper:
             'batch_id', 'checkpoint', 'model_name',  # 添加model_name到系统参数
             # 分布式文件服务相关参数
             'image_download_info', 'file_download_info', '_downloaded_files',
-            'image_file_id', 'upload_file_id',  # 文件ID相关参数
-            'image_relative_path'  # 文件相对路径参数
+            'image_file_id', 'upload_file_id'  # 文件ID相关参数
         }
 
         # 调试日志：显示接收到的所有参数
