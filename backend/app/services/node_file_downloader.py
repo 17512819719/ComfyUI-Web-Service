@@ -36,14 +36,18 @@ class NodeFileDownloader:
             logger.info(f"[NODE_DOWNLOADER] 目标路径: {local_path}")
             logger.info(f"[NODE_DOWNLOADER] 输入目录: {self.input_dir}")
 
-            # 构建本地完整路径
+            # 构建本地完整路径 - 统一使用操作系统的路径分隔符
             local_full_path = os.path.join(self.input_dir, local_path)
+            local_full_path = os.path.normpath(local_full_path)  # 标准化路径
 
             # 确保目录存在
             local_dir = os.path.dirname(local_full_path)
             os.makedirs(local_dir, exist_ok=True)
             logger.info(f"[NODE_DOWNLOADER] 完整路径: {local_full_path}")
             logger.info(f"[NODE_DOWNLOADER] 目录创建: {local_dir}")
+
+            # 验证路径是否正确创建
+            logger.info(f"[NODE_DOWNLOADER] 目录是否存在: {os.path.exists(local_dir)}")
             
             # 检查文件是否已存在且大小正确
             if os.path.exists(local_full_path):
@@ -60,6 +64,15 @@ class NodeFileDownloader:
                     success = self._download_with_retry(download_url, local_full_path, expected_size)
                     if success:
                         logger.info(f"[NODE_DOWNLOADER] 文件下载成功: {local_path}")
+
+                        # 验证文件是否真的存在
+                        if os.path.exists(local_full_path):
+                            file_size = os.path.getsize(local_full_path)
+                            logger.info(f"[NODE_DOWNLOADER] 文件验证成功: {local_full_path} ({file_size} bytes)")
+                        else:
+                            logger.error(f"[NODE_DOWNLOADER] 文件下载后不存在: {local_full_path}")
+                            raise Exception(f"文件下载后验证失败: {local_full_path}")
+
                         return local_full_path
                         
                 except Exception as e:
